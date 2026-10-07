@@ -225,7 +225,7 @@
     ready: 'hazır', hint: 'İndirme başlamadıysa <b>İndir</b>\'e bas. O da çalışmazsa önizlemeye sağ tıklayıp “Farklı kaydet” de.',
     missing: 'görsel dosyaya eklenemedi (sitenin sunucusu izin vermedi). Gem\'e “bu görselleri başka ürünlerle değiştir” diyebilirsin.', failed: 'oluşturulamadı',
     images: 'Görseller hazırlanıyor', frame: 'Kare', drawing: 'Kare çiziliyor',
-    siteLoading: 'Sitenin görüntüsü alınıyor…', siteFail: 'Sitenin görüntüsü alınamadı (site otomatik ziyaretleri engelliyor olabilir).',
+    prodFail: 'Bazı ürün görselleri siteden alınamadı.', siteLoading: 'Sitenin görüntüsü alınıyor…', siteFail: 'Sitenin görüntüsü alınamadı (site otomatik ziyaretleri engelliyor olabilir).',
   } : {
     copy: 'Copy for the Gem', copied: 'Copied ✓', close: 'Close', err: 'Error: ', play: 'Play / pause', sec: 's', dec: '.', download: 'Download',
     noTimeline: 'UC.timeline() never ran; the timeline script is missing or fails at the start.', badImgs: ' image(s) failed to load (shown grey/empty).',
@@ -233,7 +233,7 @@
     ready: 'ready', hint: 'If the download did not start, press <b>Download</b>. If that fails too, right-click the preview and choose “Save as”.',
     missing: 'image(s) could not be embedded (the site\'s server refused). You can ask the Gem to swap them for other products.', failed: 'could not be created',
     images: 'Preparing images', frame: 'Frame', drawing: 'Drawing frame',
-    siteLoading: 'Capturing the website…', siteFail: 'Could not capture the website (it may block automated visits).',
+    prodFail: 'Some product photos could not be taken from the site.', siteLoading: 'Capturing the website…', siteFail: 'Could not capture the website (it may block automated visits).',
   };
   window.UC_I18N = T_;
   const SCRIPT_SRC = (document.currentScript && document.currentScript.src) || '';
@@ -295,47 +295,100 @@
     fitSnaps(); mountSites();
     mountUI(); fit(); addEventListener('resize', fit);
   }
-  // ---------- live site backdrop: <div class="uc-site" data-site="https://brand.com/page"></div> ----------
-  // The real page is captured by a screenshot service (Microlink; WordPress mShots as fallback), so the
-  // backdrop is the brand's actual site. Fixed overlays (cookie / bot walls / chat bubbles) are removed first.
+  // ---------- live site backdrop, brand logo and product photos (all from the real site) ----------
+  //   <div class="uc-site" data-site="https://brand.com/page/"></div>      real page screenshot
+  //   <img data-uc-logo="brand.com">                                       real brand logo
+  //   <img data-uc-product="0"> + <span data-uc-pname="0">fallback</span>  real product photo + name
+  // Captured by Microlink (WordPress mShots as backdrop fallback). Answers are cached in the viewer's
+  // browser for 20 h so re-renders don't spend the service's daily quota.
   const ML = window.UC_SITE_API || 'https://api.microlink.io/?';
   const CLEAN = "(()=>{const H=innerHeight;document.querySelectorAll('body *').forEach(e=>{const s=getComputedStyle(e);if(s.position!=='fixed'&&s.position!=='sticky')return;const r=e.getBoundingClientRect();if(r.top>H*0.18||r.height>H*0.5)e.remove()})})()";
-  function siteUrls(url, mobile) {
-    const e = encodeURIComponent(url);
-    const dev = mobile ? '&device=iPhone%2013' : '&viewport.width=1280&viewport.height=720&viewport.deviceScaleFactor=2';
-    const shot = `${ML}url=${e}&screenshot=true&meta=false&embed=screenshot.url`;
-    return [shot + dev + '&adblock=true&waitForTimeout=1500&scripts=' + encodeURIComponent(CLEAN), shot + dev,
-      mobile ? null : `https://s.wordpress.com/mshots/v1/${e}?w=1280&h=720`].filter(Boolean);
+  const pendingAssets = [];
+  const cacheGet = (k) => { try { const v = JSON.parse(localStorage.getItem('uc1:' + k)); if (v && Date.now() - v.t < 72e6) return v.d; } catch (e) {} return null; };
+  const cacheSet = (k, d) => { try { localStorage.setItem('uc1:' + k, JSON.stringify({ t: Date.now(), d })); } catch (e) {} };
+  async function mlJSON(params) {
+    const hit = cacheGet(params); if (hit) return hit;
+    const r = await fetch(ML + params); const j = await r.json();
+    if (j.status !== 'success') throw new Error(j.code || 'microlink');
+    cacheSet(params, j.data); return j.data;
   }
-  function chainImg(img, urls, done, fail) {
-    let i = 0, waits = 0;
-    img.onload = () => {
-      // mShots answers with a small "generating" placeholder first; poll until the real capture is ready
-      if (/mshots/.test(img.src) && img.naturalWidth < 600 && waits++ < 8) { setTimeout(() => { img.src = urls[i] + '&r=' + waits; }, 3000); return; }
-      done && done();
-    };
-    img.onerror = () => { if (++i < urls.length) img.src = urls[i]; else fail && fail(); };
-    img.src = urls[0];
+  const absUrl = (u) => new URL(/^https?:/.test(u) ? u : 'https://' + u).href;
+  const loadImg = (img, src) => new Promise((res, rej) => { img.onload = () => res(img); img.onerror = rej; img.src = src; });
+  function shotParams(url, mobile, clean) {
+    const dev = mobile ? '&device=iPhone%2013' : '&viewport.width=1280&viewport.height=720&viewport.deviceScaleFactor=2';
+    return `url=${encodeURIComponent(url)}&screenshot=true&meta=false${dev}` + (clean ? '&adblock=true&waitForTimeout=1500&scripts=' + encodeURIComponent(CLEAN) : '');
+  }
+  async function mountSite(el) {
+    const img = document.createElement('img'); img.alt = '';
+    const msg = document.createElement('div'); msg.className = 'uc-site-msg'; msg.textContent = T_.siteLoading;
+    el.append(img, msg);
+    const url = absUrl(el.dataset.site), mobile = SURF.name === 'mobile';
+    const tries = [
+      async () => (await mlJSON(shotParams(url, mobile, true))).screenshot.url,
+      async () => (await mlJSON(shotParams(url, mobile, false))).screenshot.url,
+      async () => ML + shotParams(url, mobile, true) + '&embed=screenshot.url',   // if JSON is blocked, let <img> load it
+    ];
+    for (const t of tries) { try { await loadImg(img, await t()); msg.remove(); return; } catch (e) {} }
+    if (!mobile) {   // last resort: WordPress mShots (polls until the capture is ready)
+      const m = `https://s.wordpress.com/mshots/v1/${encodeURIComponent(url)}?w=1280&h=720`;
+      for (let i = 0; i < 8; i++) { try { await loadImg(img, m + '&r=' + i); if (img.naturalWidth >= 600) { msg.remove(); return; } } catch (e) { break; } await new Promise((r) => setTimeout(r, 3000)); }
+    }
+    img.style.display = 'none'; msg.textContent = T_.siteFail;
+    note('warn', T_.siteFail, 'The screenshot service could not capture ' + url + '. Suggest another page of the same site (e.g. a category page); if that also fails, ask me for a screenshot.');
+  }
+  async function mountLogo(img, host) {
+    try { const d = await mlJSON(`url=${encodeURIComponent(host)}&meta=true`); if (d.logo && d.logo.url) { await loadImg(img, d.logo.url); return; } } catch (e) {}
+    try { await loadImg(img, `https://www.google.com/s2/favicons?domain=${new URL(host).hostname}&sz=256`); } catch (e) { img.style.visibility = 'hidden'; }
+  }
+  // Product photos: every <img> with a real src + alt on the page, then keep the ones that look like
+  // product shots (not icons, logos, payment badges or wide banners), paired with their alt text as name.
+  const productLists = new Map();
+  function productsOf(url) {
+    if (productLists.has(url)) return productLists.get(url);
+    const sel = encodeURIComponent('img[src^="http"][alt]:not([alt=""])');
+    const p = (async () => {
+      const d = await mlJSON(`url=${encodeURIComponent(url)}&meta=false&data.src.selectorAll=${sel}&data.src.attr=src&data.alt.selectorAll=${sel}&data.alt.attr=alt`);
+      const src = d.src || [], alt = d.alt || [], seen = new Set(), cands = [];
+      const BAD = /\.svg|logo|icon|sprite|payment|visa|master|etbis|badge|flag|avatar|placeholder|loading|blank|pixel|[_-](size)?\d{1,2}x\d{1,2}(?=[_.\-/?]|$)|[?&](w|width)=\d{1,2}(?!\d)/i;
+      src.forEach((s, i) => {
+        const name = String(alt[i] || '').replace(/\s+/g, ' ').trim();
+        if (!s || BAD.test(s) || seen.has(s) || !name || /sepete ekle|add to (cart|bag)|^logo/i.test(name)) return;
+        seen.add(s); cands.push({ src: s, name });
+      });
+      const checked = await Promise.all(cands.slice(0, 36).map((c) => new Promise((res) => {
+        const im = new Image(); im.onload = () => { const r = im.naturalHeight / im.naturalWidth; res(im.naturalWidth >= 200 && r >= 0.55 && r <= 1.9 ? c : null); };
+        im.onerror = () => res(null); im.src = c.src;
+      })));
+      const names = new Set();
+      return checked.filter((c) => c && !names.has(c.name) && names.add(c.name));
+    })();
+    productLists.set(url, p); return p;
   }
   function mountSites() {
+    const site = document.querySelector('.uc-site[data-site]');
     document.querySelectorAll('.uc-site[data-site]').forEach((el) => {
-      if (el.dataset.ucMounted) return; el.dataset.ucMounted = '1';
-      const img = document.createElement('img'); img.alt = '';
-      const msg = document.createElement('div'); msg.className = 'uc-site-msg'; msg.textContent = T_.siteLoading;
-      el.append(img, msg);
-      chainImg(img, siteUrls(el.dataset.site, SURF.name === 'mobile'), () => msg.remove(), () => {
-        img.style.display = 'none'; msg.textContent = T_.siteFail;
-        note('warn', T_.siteFail, 'The screenshot service could not capture ' + el.dataset.site + '. Ask me for a screenshot of the site, or try another page of the same site (e.g. a category page).');
-      });
+      if (el.dataset.ucMounted) return; el.dataset.ucMounted = '1'; pendingAssets.push(mountSite(el));
     });
-    // brand logo for Insider components: <img data-uc-logo="brand.com">
     document.querySelectorAll('img[data-uc-logo]').forEach((img) => {
       if (img.dataset.ucMounted) return; img.dataset.ucMounted = '1';
-      let host = img.dataset.ucLogo || (document.querySelector('.uc-site[data-site]') || {}).dataset?.site || '';
-      try { host = new URL(/^https?:/.test(host) ? host : 'https://' + host).href; } catch (e) { return; }
-      chainImg(img, [`${ML}url=${encodeURIComponent(host)}&meta=true&embed=logo.url`,
-        `https://www.google.com/s2/favicons?domain=${new URL(host).hostname}&sz=256`], null, () => { img.style.visibility = 'hidden'; });
+      let host; try { host = absUrl(img.dataset.ucLogo || (site && site.dataset.site) || ''); } catch (e) { return; }
+      pendingAssets.push(mountLogo(img, host));
     });
+    const pimgs = [...document.querySelectorAll('img[data-uc-product]')];
+    if (pimgs.length) pendingAssets.push((async () => {
+      const groups = new Map();
+      pimgs.forEach((img) => { const from = (img.closest('[data-uc-products]') || {}).dataset?.ucProducts || (site && site.dataset.site); if (from) { const u = absUrl(from); if (!groups.has(u)) groups.set(u, []); groups.get(u).push(img); } });
+      let missing = 0;
+      for (const [u, list] of groups) {
+        let prods = []; try { prods = await productsOf(u); } catch (e) {}
+        await Promise.all(list.map(async (img) => {
+          const p = prods[+img.dataset.ucProduct || 0]; if (!p) { missing++; img.classList.add('uc-noimg'); return; }
+          try { await loadImg(img, p.src); } catch (e) { missing++; img.classList.add('uc-noimg'); }
+          document.querySelectorAll(`[data-uc-pname="${img.dataset.ucProduct}"]`).forEach((n) => { n.textContent = p.name; });
+        }));
+      }
+      if (missing) note('warn', T_.prodFail, 'Some product photos could not be taken from the page. Point the product cards at a category page of the site with data-uc-products="https://…", or ask me for a screenshot.');
+    })());
   }
 
   // A bookmark snapshot captured at another window width is scaled to the surface width.
@@ -434,6 +487,7 @@
     m.querySelector('.cancel').onclick = () => { cancelled = true; };
     const prog = (p, txt) => { m.querySelector('.track b').style.width = Math.round(p * 100) + '%'; if (txt) m.querySelector('.st').textContent = txt; };
     try {
+      prog(0.02, T_.images); await Promise.allSettled(pendingAssets);
       const X = await loadExporter();
       const d = document.documentElement.dataset;
       const res = await X.run(kind, {

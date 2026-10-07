@@ -497,3 +497,8 @@ html.uc-player, html.uc-player body { background: #e6e6ea !important; }
 [data-surface="mobile"] .uc-site { top: 47px; }
 .uc-site > img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
 .uc-site-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; font: 500 15px/1.4 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; color: #7a7a85; }
+/* real product photo slots + brand-logo launcher */
+img[data-uc-product] { background: #eef0f3; object-fit: cover; }
+img.uc-noimg { visibility: hidden; }
+.ucc-launcher.brand { background: #fff; border: 1px solid rgba(0,0,0,.06); }
+.ucc-launcher.brand img { width: 64%; height: 64%; object-fit: contain; }
