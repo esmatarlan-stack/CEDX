@@ -486,3 +486,14 @@ html.uc-player, html.uc-player body { background: #e6e6ea !important; }
 #uc-modal .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
 #uc-modal a.dl, #uc-modal button { font: 600 13px/34px system-ui, -apple-system, "Segoe UI", Arial, sans-serif; height: 34px; padding: 0 16px; border-radius: 8px; border: 1px solid #cfcfd6; background: #fff; color: #1d1d22; text-decoration: none; cursor: pointer; }
 #uc-modal a.dl { background: #1d1d22; border-color: #1d1d22; color: #fff; }
+
+/* ---------- page snapshot from the Use Case bookmark (real site layout, absolutely positioned) ---------- */
+.snap { position: relative; overflow: hidden; transform-origin: 0 0; }
+.snap > * { position: absolute; box-sizing: border-box; margin: 0; padding: 0; }
+.snap img { display: block; max-width: none; }
+
+/* ---------- live site backdrop (screenshot of the real page) ---------- */
+.uc-site { position: absolute; left: 0; right: 0; top: 0; bottom: 0; background: #eceef1; overflow: hidden; }
+[data-surface="mobile"] .uc-site { top: 47px; }
+.uc-site > img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
+.uc-site-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; font: 500 15px/1.4 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; color: #7a7a85; }

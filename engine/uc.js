@@ -217,6 +217,25 @@
   }
 
   // ================= stage, player, error banner, export (Gemini Canvas build) =================
+  // UI language follows the viewer's browser: Turkish for tr-*, English otherwise.
+  const T_ = /^tr/i.test(navigator.language || '') ? {
+    copy: 'Gem için kopyala', copied: 'Kopyalandı ✓', close: 'Kapat', err: 'Hata: ', play: 'Oynat / durdur', sec: 'sn', dec: ',', download: 'İndir',
+    noTimeline: 'UC.timeline() hiç çalışmadı; timeline script\'i eksik ya da başında hata var.', badImgs: ' görsel yüklenemedi (gri/boş görünür).',
+    making: 'hazırlanıyor…', preparing: 'Hazırlanıyor', keepOpen: 'Bu sekme açık kalsın. Uzun animasyonlarda 1–3 dakika sürebilir.', cancel: 'Vazgeç',
+    ready: 'hazır', hint: 'İndirme başlamadıysa <b>İndir</b>\'e bas. O da çalışmazsa önizlemeye sağ tıklayıp “Farklı kaydet” de.',
+    missing: 'görsel dosyaya eklenemedi (sitenin sunucusu izin vermedi). Gem\'e “bu görselleri başka ürünlerle değiştir” diyebilirsin.', failed: 'oluşturulamadı',
+    images: 'Görseller hazırlanıyor', frame: 'Kare', drawing: 'Kare çiziliyor',
+    siteLoading: 'Sitenin görüntüsü alınıyor…', siteFail: 'Sitenin görüntüsü alınamadı (site otomatik ziyaretleri engelliyor olabilir).',
+  } : {
+    copy: 'Copy for the Gem', copied: 'Copied ✓', close: 'Close', err: 'Error: ', play: 'Play / pause', sec: 's', dec: '.', download: 'Download',
+    noTimeline: 'UC.timeline() never ran; the timeline script is missing or fails at the start.', badImgs: ' image(s) failed to load (shown grey/empty).',
+    making: 'in progress…', preparing: 'Preparing', keepOpen: 'Keep this tab open. Long animations can take 1–3 minutes.', cancel: 'Cancel',
+    ready: 'ready', hint: 'If the download did not start, press <b>Download</b>. If that fails too, right-click the preview and choose “Save as”.',
+    missing: 'image(s) could not be embedded (the site\'s server refused). You can ask the Gem to swap them for other products.', failed: 'could not be created',
+    images: 'Preparing images', frame: 'Frame', drawing: 'Drawing frame',
+    siteLoading: 'Capturing the website…', siteFail: 'Could not capture the website (it may block automated visits).',
+  };
+  window.UC_I18N = T_;
   const SCRIPT_SRC = (document.currentScript && document.currentScript.src) || '';
   const BASE = SCRIPT_SRC.replace(/[^/]*(\?.*)?$/, '');
   const RAW = /[?&]raw\b/.test(location.search); // ?raw = plain page (old render.py pipeline), no player
@@ -253,13 +272,13 @@
     if (!ui) { pending.push([kind, msg, copy]); return; }
     const n = document.createElement('div'); n.className = 'note ' + kind;
     const p = document.createElement('p'); p.textContent = msg; p.title = msg;
-    const b = document.createElement('button'); b.textContent = 'Gem için kopyala';
-    b.onclick = () => { copyText(copy || msg); b.textContent = 'Kopyalandı ✓'; setTimeout(() => (b.textContent = 'Gem için kopyala'), 1800); };
-    const x = document.createElement('button'); x.textContent = '✕'; x.title = 'Kapat'; x.onclick = () => { n.remove(); fit(); };
+    const b = document.createElement('button'); b.textContent = T_.copy;
+    b.onclick = () => { copyText(copy || msg); b.textContent = T_.copied; setTimeout(() => (b.textContent = T_.copy), 1800); };
+    const x = document.createElement('button'); x.textContent = '✕'; x.title = T_.close; x.onclick = () => { n.remove(); fit(); };
     n.append(p, b, x); ui.querySelector('.notes').appendChild(n); fit();
   }
-  const report = (m) => note('err', 'Hata: ' + m, 'Canvas önizlemesinde şu hata çıkıyor, düzeltip sayfanın tamamını yeniden yaz: ' + m);
-  addEventListener('error', (e) => { if (e.message) report(e.message + (e.lineno ? ' (satır ' + e.lineno + ')' : '')); });
+  const report = (m) => note('err', T_.err + m, 'The Canvas preview shows this error. Fix it and rewrite the whole page: ' + m);
+  addEventListener('error', (e) => { if (e.message) report(e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
   addEventListener('unhandledrejection', (e) => report(String((e.reason && e.reason.message) || e.reason)));
 
   // ---------- stage ----------
@@ -273,7 +292,59 @@
     });
     document.body.prepend(stage);
     document.documentElement.classList.add('uc-player');
+    fitSnaps(); mountSites();
     mountUI(); fit(); addEventListener('resize', fit);
+  }
+  // ---------- live site backdrop: <div class="uc-site" data-site="https://brand.com/page"></div> ----------
+  // The real page is captured by a screenshot service (Microlink; WordPress mShots as fallback), so the
+  // backdrop is the brand's actual site. Fixed overlays (cookie / bot walls / chat bubbles) are removed first.
+  const ML = window.UC_SITE_API || 'https://api.microlink.io/?';
+  const CLEAN = "(()=>{const H=innerHeight;document.querySelectorAll('body *').forEach(e=>{const s=getComputedStyle(e);if(s.position!=='fixed'&&s.position!=='sticky')return;const r=e.getBoundingClientRect();if(r.top>H*0.18||r.height>H*0.5)e.remove()})})()";
+  function siteUrls(url, mobile) {
+    const e = encodeURIComponent(url);
+    const dev = mobile ? '&device=iPhone%2013' : '&viewport.width=1280&viewport.height=720&viewport.deviceScaleFactor=2';
+    const shot = `${ML}url=${e}&screenshot=true&meta=false&embed=screenshot.url`;
+    return [shot + dev + '&adblock=true&waitForTimeout=1500&scripts=' + encodeURIComponent(CLEAN), shot + dev,
+      mobile ? null : `https://s.wordpress.com/mshots/v1/${e}?w=1280&h=720`].filter(Boolean);
+  }
+  function chainImg(img, urls, done, fail) {
+    let i = 0, waits = 0;
+    img.onload = () => {
+      // mShots answers with a small "generating" placeholder first; poll until the real capture is ready
+      if (/mshots/.test(img.src) && img.naturalWidth < 600 && waits++ < 8) { setTimeout(() => { img.src = urls[i] + '&r=' + waits; }, 3000); return; }
+      done && done();
+    };
+    img.onerror = () => { if (++i < urls.length) img.src = urls[i]; else fail && fail(); };
+    img.src = urls[0];
+  }
+  function mountSites() {
+    document.querySelectorAll('.uc-site[data-site]').forEach((el) => {
+      if (el.dataset.ucMounted) return; el.dataset.ucMounted = '1';
+      const img = document.createElement('img'); img.alt = '';
+      const msg = document.createElement('div'); msg.className = 'uc-site-msg'; msg.textContent = T_.siteLoading;
+      el.append(img, msg);
+      chainImg(img, siteUrls(el.dataset.site, SURF.name === 'mobile'), () => msg.remove(), () => {
+        img.style.display = 'none'; msg.textContent = T_.siteFail;
+        note('warn', T_.siteFail, 'The screenshot service could not capture ' + el.dataset.site + '. Ask me for a screenshot of the site, or try another page of the same site (e.g. a category page).');
+      });
+    });
+    // brand logo for Insider components: <img data-uc-logo="brand.com">
+    document.querySelectorAll('img[data-uc-logo]').forEach((img) => {
+      if (img.dataset.ucMounted) return; img.dataset.ucMounted = '1';
+      let host = img.dataset.ucLogo || (document.querySelector('.uc-site[data-site]') || {}).dataset?.site || '';
+      try { host = new URL(/^https?:/.test(host) ? host : 'https://' + host).href; } catch (e) { return; }
+      chainImg(img, [`${ML}url=${encodeURIComponent(host)}&meta=true&embed=logo.url`,
+        `https://www.google.com/s2/favicons?domain=${new URL(host).hostname}&sz=256`], null, () => { img.style.visibility = 'hidden'; });
+    });
+  }
+
+  // A bookmark snapshot captured at another window width is scaled to the surface width.
+  function fitSnaps() {
+    document.querySelectorAll('.snap[data-w]').forEach((el) => {
+      const w = +el.dataset.w, k = SURF.w / w; if (!w || Math.abs(k - 1) < 0.005 || el.dataset.ucFit) return;
+      el.dataset.ucFit = '1'; el.style.scale = k; el.style.transformOrigin = '0 0';
+      const h = el.offsetHeight; el.style.marginBottom = (h * k - h) + 'px'; el.style.marginRight = (w * k - w) + 'px';
+    });
   }
   function fit() {
     if (!stage) return;
@@ -290,10 +361,10 @@
   function safeSeek(t) {
     try { current.seek(t); } catch (e) { if (!seekFailed) { seekFailed = true; report(e.message || String(e)); } }
   }
-  function fmt(t) { return t.toFixed(1).replace('.', ',') ; }
+  function fmt(t) { return t.toFixed(1).replace('.', T_.dec); }
   function syncUI() {
     if (!ui || !current) return; const D = current.duration;
-    ui.querySelector('.time').textContent = fmt(Math.min(tNow, D)) + ' / ' + fmt(D) + ' sn';
+    ui.querySelector('.time').textContent = fmt(Math.min(tNow, D)) + ' / ' + fmt(D) + ' ' + T_.sec;
     if (!scrubbing) ui.querySelector('input').value = Math.round((Math.min(tNow, D) / D) * 1000);
     ui.querySelector('.play').textContent = playing ? '❚❚' : '▶';
   }
@@ -310,10 +381,10 @@
     const rec = (document.documentElement.dataset.format || 'gif').toLowerCase();
     ui = document.createElement('div'); ui.id = 'uc-ui';
     ui.innerHTML = '<div class="notes"></div><div class="bar">' +
-      '<button class="play" title="Oynat / durdur">❚❚</button>' +
-      '<input type="range" min="0" max="1000" value="0" aria-label="Zaman">' +
-      '<span class="time">0,0 sn</span>' +
-      '<div class="exp"><span>İndir</span>' +
+      '<button class="play" title="' + T_.play + '">❚❚</button>' +
+      '<input type="range" min="0" max="1000" value="0" aria-label="Time">' +
+      '<span class="time"></span>' +
+      '<div class="exp"><span>' + T_.download + '</span>' +
       ['gif', 'mp4', 'png'].map((k) => `<button data-k="${k}" class="${k === rec ? 'main' : ''}">${k.toUpperCase()}</button>`).join('') +
       '</div></div>';
     document.body.appendChild(ui);
@@ -330,10 +401,10 @@
   addEventListener('load', () => setTimeout(() => {
     if (RAW) return;
     if (!stage) mountStage();
-    if (!current) report('UC.timeline() hiç çalışmadı; timeline script\'i eksik ya da başında hata var.');
-    const bad = [...document.querySelectorAll('#uc-stage img')].filter((i) => i.getAttribute('src') && i.complete && i.naturalWidth === 0).map((i) => i.getAttribute('src'));
-    if (bad.length) note('warn', bad.length + ' görsel yüklenemedi (gri/boş görünür).',
-      'Şu görsel URL\'leri yüklenmiyor, bunları markanın verisindeki başka gerçek görsel URL\'leriyle değiştir (URL uydurma): ' + bad.join(' , '));
+    if (!current) report(T_.noTimeline);
+    const bad = [...document.querySelectorAll('#uc-stage img')].filter((i) => !i.closest('.uc-site') && !i.hasAttribute('data-uc-logo') && i.getAttribute('src') && i.complete && i.naturalWidth === 0).map((i) => i.getAttribute('src'));
+    if (bad.length) note('warn', bad.length + T_.badImgs,
+      'These image URLs do not load. Replace them with other real image URLs from the brand data (never invent URLs): ' + bad.join(' , '));
   }, 1200));
 
   // ---------- export ----------
@@ -341,8 +412,8 @@
     if (window.UCExport) return Promise.resolve(window.UCExport);
     return new Promise((res, rej) => {
       const s = document.createElement('script'); s.src = BASE + 'uc-export.js';
-      s.onload = () => (window.UCExport ? res(window.UCExport) : rej(new Error('uc-export.js boş')));
-      s.onerror = () => rej(new Error('uc-export.js yüklenemedi (' + s.src + ')'));
+      s.onload = () => (window.UCExport ? res(window.UCExport) : rej(new Error('uc-export.js is empty')));
+      s.onerror = () => rej(new Error('uc-export.js could not be loaded (' + s.src + ')'));
       document.head.appendChild(s);
     });
   }
@@ -357,9 +428,9 @@
   async function doExport(kind) {
     if (busy || !current) return;
     busy = true; const wasPlaying = playing; let cancelled = false;
-    const label = { gif: 'GIF', mp4: 'MP4', png: 'PNG' }[kind];
-    const m = modal(`<h3>${label} hazırlanıyor…</h3><p class="st">Hazırlanıyor</p><div class="track"><b></b></div>` +
-      '<p>Bu sekme açık kalsın. Uzun animasyonlarda 1–3 dakika sürebilir.</p><div class="row"><button class="cancel">Vazgeç</button></div>');
+    const label = kind.toUpperCase();
+    const m = modal(`<h3>${label} ${T_.making}</h3><p class="st">${T_.preparing}</p><div class="track"><b></b></div>` +
+      `<p>${T_.keepOpen}</p><div class="row"><button class="cancel">${T_.cancel}</button></div>`);
     m.querySelector('.cancel').onclick = () => { cancelled = true; };
     const prog = (p, txt) => { m.querySelector('.track b').style.width = Math.round(p * 100) + '%'; if (txt) m.querySelector('.st').textContent = txt; };
     try {
@@ -371,15 +442,15 @@
         onProgress: prog, cancelled: () => cancelled,
       });
       if (!res) { m.remove(); return; }
-      const url = URL.createObjectURL(res.blob), name = slug() + '.' + res.ext, mb = (res.blob.size / 1048576).toFixed(1).replace('.', ',');
+      const url = URL.createObjectURL(res.blob), name = slug() + '.' + res.ext, mb = (res.blob.size / 1048576).toFixed(1).replace('.', T_.dec);
       const media = kind === 'mp4' ? `<video src="${url}" controls autoplay loop muted playsinline></video>` : `<img src="${url}" alt="">`;
-      const miss = res.missing && res.missing.length ? `<p style="color:#8a5a00;margin-top:8px">${res.missing.length} görsel dosyaya eklenemedi (sitenin sunucusu izin vermedi). Gem'e “bu görselleri başka ürünlerle değiştir” diyebilirsin.</p>` : '';
-      const r = modal(`<h3>${label} hazır · ${mb} MB</h3><p>İndirme başlamadıysa <b>İndir</b>'e bas. O da çalışmazsa önizlemeye sağ tıklayıp “Farklı kaydet” de.</p>${miss}` +
-        `<div class="prev">${media}</div><div class="row"><button class="close">Kapat</button><a class="dl" href="${url}" download="${name}">İndir</a></div>`);
+      const miss = res.missing && res.missing.length ? `<p style="color:#8a5a00;margin-top:8px">${res.missing.length} ${T_.missing}</p>` : '';
+      const r = modal(`<h3>${label} ${T_.ready} · ${mb} MB</h3><p>${T_.hint}</p>${miss}` +
+        `<div class="prev">${media}</div><div class="row"><button class="close">${T_.close}</button><a class="dl" href="${url}" download="${name}">${T_.download}</a></div>`);
       r.querySelector('.close').onclick = () => r.remove();
       try { r.querySelector('a.dl').click(); } catch (e) {}
     } catch (e) {
-      const r = modal(`<h3>${label} oluşturulamadı</h3><p>${String(e && e.message || e)}</p><div class="row"><button class="close">Kapat</button></div>`);
+      const r = modal(`<h3>${label} ${T_.failed}</h3><p>${String(e && e.message || e)}</p><div class="row"><button class="close">${T_.close}</button></div>`);
       r.querySelector('.close').onclick = () => r.remove();
     } finally {
       busy = false; setPlaying(wasPlaying);
