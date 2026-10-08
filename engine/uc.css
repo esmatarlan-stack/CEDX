@@ -502,3 +502,60 @@ img[data-uc-product] { background: #eef0f3; object-fit: cover; }
 img.uc-noimg { visibility: hidden; }
 .ucc-launcher.brand { background: #fff; border: 1px solid rgba(0,0,0,.06); }
 .ucc-launcher.brand img { width: 64%; height: 64%; object-fit: contain; }
+
+/* ================= scene templates (UC.scene) ================= */
+.uc-wlogo { background: #fff !important; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.uc-wlogo img { width: 80% !important; height: 80% !important; object-fit: contain !important; filter: none !important; }
+.ucn-ios .ic.light, .ucn-web .ic.light { background: #fff; border: 1px solid rgba(0,0,0,.07); }
+.ucn-ios .ic.light img, .ucn-web .ic.light img { width: 76%; height: 76%; object-fit: contain; }
+.ucn-ios .thumb, .ucn-web .hero { background: #eef0f3; }
+.sc-pmsg img.media { aspect-ratio: 1/1; object-fit: cover; background: #f2f2f2; }
+.sc-sheet { font-family: var(--font); }
+.sc-sheet .sc-srow { display: flex; gap: 14px; align-items: center; text-align: left; }
+.sc-sheet .sc-srow img { width: 72px; height: 72px; border-radius: 12px; object-fit: cover; background: #f2f2f2; flex: 0 0 72px; }
+.sc-st { font: 800 18px/1.25 var(--font); color: #111; }
+.sc-sx { font: 14px/1.4 var(--font); color: #555; margin-top: 4px; }
+.sc-code { margin: 16px 0 12px; height: 50px; border: 2px dashed var(--brand); border-radius: 12px; display: flex; align-items: center; justify-content: center; font: 800 19px/1 var(--font); letter-spacing: 2px; color: var(--brand); }
+.sc-btn { width: 100%; height: 52px; border-radius: 12px; background: var(--brand); color: var(--brand-ink); font: 700 16px/1 var(--font); }
+.sc-kick { font: 700 11px/1 var(--font); letter-spacing: 1.6px; opacity: .65; margin-bottom: 8px; text-transform: uppercase; }
+.sc-plogo { height: 30px; max-width: 150px; object-fit: contain; margin: 0 auto 16px; display: block; }
+.sc-no { margin-top: 12px; font-size: 12.5px; color: #888; text-decoration: underline; }
+.ucp-coupon button.ok, .sc-sheet button.ok { background: #2e9e5b; color: #fff; }
+.sc-pop .cta { width: 100%; }
+.sc-pop.two { --pw: 760px; display: flex; text-align: left; }
+.sc-pop.two .sc-side { width: 44%; object-fit: cover; background: #f2f2f2; align-self: stretch; min-height: 460px; flex: 0 0 44%; }
+.sc-pop.two .ucp-pad { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 40px 36px; }
+.sc-pop.two .sc-plogo { margin: 0 0 20px; }
+.sc-psheet { text-align: center; }
+.sc-psheet .sc-hero { width: 100%; height: 190px; object-fit: cover; border-radius: 14px; margin-bottom: 14px; background: #f2f2f2; display: block; }
+.sc-psheet .cta { width: 100%; }
+.sc-toast { left: 50%; bottom: 28px; translate: -50% 0; width: 430px; }
+[data-surface="mobile"] .sc-toast { left: 12px; right: 12px; translate: none; width: auto; bottom: 30px; }
+.sc-wheelpop { --pw: 420px; overflow: visible; }
+.sc-wheelpop.m { --pw: 350px; }
+.sc-wheelpop .ucp-wheel .seg { font-size: 12px; font-weight: 800; }
+.sc-wheelpop .ucp-wheel .seg.l { color: var(--brand-ink); }
+.sc-wheelpop .ucp-wheel .seg.d { color: var(--brand); }
+.sc-wheelpop .ucp-wheel .hub { background: #fff; }
+.sc-wheelpop .ucp-wheel .hub img { width: 74%; height: 74%; object-fit: contain; }
+.sc-wheelpop .ucp-pointer { --pointer: var(--accent); }
+.sc-wheelpop .cta { width: 100%; margin-top: 18px; }
+.sc-sticky { position: absolute; left: 50%; translate: -50% 0; bottom: 26px; width: 560px; z-index: 40; background: var(--brand); color: var(--brand-ink); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 26px rgba(0,0,0,.3); font: 13.5px/1.3 var(--font); }
+[data-surface="mobile"] .sc-sticky { left: 10px; right: 10px; width: auto; translate: none; }
+.sc-sticky .tag { background: var(--brand-ink); color: var(--brand); font: 800 13px/1 var(--font); padding: 8px 10px; border-radius: 8px; letter-spacing: 1px; }
+.sc-sticky .cd { margin-left: auto; font: 800 15px/1 var(--font); background: rgba(255,255,255,.16); padding: 8px 9px; border-radius: 8px; font-variant-numeric: tabular-nums; }
+.ucc-av.uc-wlogo { border: 1px solid rgba(0,0,0,.06); }
+.sc-hlogo { width: 38px; height: 38px; border-radius: 50%; flex: 0 0 38px; }
+.sc-cards .ucc-card .img { height: 150px; }
+.sc-cards .ucc-card .img img { object-fit: cover; }
+.ucc.mobile .sc-cards .ucc-card { flex: 0 0 138px; }
+.sc-psheet .cta { display: block; width: 100%; height: 50px; border-radius: 12px; background: var(--brand); color: var(--brand-ink); font: 700 16px/1 var(--font); margin-top: 14px; }
+.sc-psheet h2 { font: 800 22px/1.2 var(--font); margin: 4px 0 6px; color: #111; }
+.sc-psheet p { font-size: 14px; line-height: 1.4; color: #555; }
+.sc-btn.ok { background: #2e9e5b !important; color: #fff !important; }
+.ucc-card .t:empty { display: none; }
+.sc-land { text-align: left; }
+.sc-land .sc-hero, .sc-qv .sc-hero { display: none; }
+.sc-land .sc-hero { display: block; width: 100%; height: 300px; object-fit: cover; border-radius: 14px; margin-bottom: 14px; background: #f2f2f2; }
+.sc-land .sc-btn, .sc-qv .sc-btn { margin-top: 16px; }
+.sc-qv .sc-st { font-size: 24px; }

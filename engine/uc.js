@@ -306,11 +306,16 @@
   const pendingAssets = [];
   const cacheGet = (k) => { try { const v = JSON.parse(localStorage.getItem('uc1:' + k)); if (v && Date.now() - v.t < 72e6) return v.d; } catch (e) {} return null; };
   const cacheSet = (k, d) => { try { localStorage.setItem('uc1:' + k, JSON.stringify({ t: Date.now(), d })); } catch (e) {} };
-  async function mlJSON(params) {
-    const hit = cacheGet(params); if (hit) return hit;
-    const r = await fetch(ML + params); const j = await r.json();
-    if (j.status !== 'success') throw new Error(j.code || 'microlink');
-    cacheSet(params, j.data); return j.data;
+  const inflight = new Map();   // same request from several elements = one call (protects the daily quota)
+  function mlJSON(params) {
+    const hit = cacheGet(params); if (hit) return Promise.resolve(hit);
+    if (inflight.has(params)) return inflight.get(params);
+    const p = (async () => {
+      const r = await fetch(ML + params); const j = await r.json();
+      if (j.status !== 'success') throw new Error(j.code || 'microlink');
+      cacheSet(params, j.data); return j.data;
+    })();
+    inflight.set(params, p); p.catch(() => inflight.delete(params)); return p;
   }
   const absUrl = (u) => new URL(/^https?:/.test(u) ? u : 'https://' + u).href;
   const loadImg = (img, src) => new Promise((res, rej) => { img.onload = () => res(img); img.onerror = rej; img.src = src; });
@@ -337,7 +342,7 @@
     note('warn', T_.siteFail, 'The screenshot service could not capture ' + url + '. Suggest another page of the same site (e.g. a category page); if that also fails, ask me for a screenshot.');
   }
   async function mountLogo(img, host) {
-    try { const d = await mlJSON(`url=${encodeURIComponent(host)}&meta=true`); if (d.logo && d.logo.url) { await loadImg(img, d.logo.url); return; } } catch (e) {}
+    try { const d = await mlJSON(`url=${encodeURIComponent(new URL(host).origin + '/')}&meta=true`); if (d.logo && d.logo.url) { await loadImg(img, d.logo.url); return; } } catch (e) {}
     try { await loadImg(img, `https://www.google.com/s2/favicons?domain=${new URL(host).hostname}&sz=256`); } catch (e) { img.style.visibility = 'hidden'; }
   }
   // Product photos: every <img> with a real src + alt on the page, then keep the ones that look like
@@ -527,5 +532,301 @@
     play() { setPlaying(true); }, pause() { setPlaying(false); },
     export: (kind) => doExport(kind || 'gif'),
     ease, clamp, lerp,
+  };
+})();
+
+/* ================= SCENES: ready-made, tested use cases =================
+ * The Gem only fills in a small config; layout, motion and timing are fixed here, so every run of the
+ * same use case looks the same and nothing overlaps.
+ *
+ *   UC.scene({ type: 'whatsapp', site: 'https://brand.com/category/', brand: { name: 'Brand', color: '#111' },
+ *              lang: 'tr', customer: 'Ayşe', coupon: 'BRAND10', discount: '%10', ...texts });
+ *
+ * Types: whatsapp · popup · wheel · push · agent. Every text has a default (Turkish for lang 'tr',
+ * English otherwise); pass texts in the site's language for any other language.
+ */
+(function () {
+  const esc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+  const STATUS = '<div class="uc-status"><span>9:41</span><span class="icons"><span class="bars"><i></i><i></i><i></i><i></i></span><span class="batt"><b></b></span></span></div>';
+
+  const TXT = {
+    tr: {
+      now: 'şimdi', today: 'Bugün', business: 'İşletme hesabı', meta: 'Bu işletme, bu sohbeti yönetmek için Meta\'nın güvenli bir hizmetini kullanıyor.',
+      wa: { notify: (c) => `${c}, sepetindeki ürün seni bekliyor 🛍️`, greeting: (c, b) => `Merhaba ${c}! 👋 ${b}'dan sana özel bir hatırlatma var.`,
+        productTitle: 'Sepetindeki ürün tükenmeden 🛍️', productText: (d, k) => `Siparişini şimdi tamamla, ${d} indirim kodun hazır: *${k}*`,
+        cta: '🛒 Sepete Git', cta2: 'Soru sor', sheetTitle: 'İndirimin sepette! 🎉', sheetText: (d, k) => `${k} koduyla ${d} indirim sepetine uygulandı.`, sheetCta: 'Siparişi Tamamla' },
+      popup: { kicker: 'GİTMEDEN ÖNCE', title: (d) => `${d} indirim seni bekliyor`, text: 'Sepetindeki ürünler için bugüne özel indirim kodun hazır.',
+        cta: 'Kodu Göster', copy: 'Kopyala', done: 'Kopyalandı ✓', toast: (k) => `${k} kodun sepette otomatik uygulanacak`, close: 'Hayır, teşekkürler' },
+      wheel: { kicker: 'SADECE BUGÜN', title: 'Çarkı çevir, indirimini kap!', text: 'Sana özel sürprizler seni bekliyor.', spin: 'Çarkı Çevir',
+        segments: ['%10', 'KARGO', '%15', 'HEDİYE', '%20', 'TEKRAR', '%5', '%25'], win: 2, resultKicker: 'TEBRİKLER! 🎉', resultTitle: 'Sepette ekstra',
+        resultText: 'indirim kazandın! 24 saat geçerli.', copy: 'Kopyala', done: 'Kopyalandı ✓', cta: 'Alışverişe Başla', sticky: 'indirimin sepette otomatik uygulanacak' },
+      push: { title: (c) => `${c}, beğendiğin ürün seni bekliyor`, text: 'Stoklar tükenmeden göz at.', cta: 'Hemen Gör', cta2: 'Kapat', site: 'şimdi',
+        landTitle: 'Beğendiğin ürün', landText: 'Tekrar baktığın için teşekkürler, sepete eklemeye hazır.', landCta: 'Sepete Ekle', landDone: '✓ Sepete eklendi' },
+      agent: { title: 'Alışveriş Asistanı', sub: 'Genellikle anında yanıt verir', nudge: 'Merhaba 👋 Aradığını bulmana yardım edeyim mi?',
+        greeting: (b) => `Merhaba! Ben ${b} asistanıyım. Size nasıl yardımcı olabilirim?`, quick: ['Ürün önerisi', 'Kombin fikri', 'Sipariş takibi'],
+        question: 'Bu sezon için şık ve rahat bir şeyler arıyorum', answer: 'Harika seçim! Bu sezon en çok beğenilenlerden birkaçını seçtim 👇',
+        cardCta: 'Sepete Ekle', added: '✓ Eklendi', confirm: 'Sepetinize eklendi! 🎉 Ödemeye geçmek ister misiniz?', final: ['Ödemeye Geç', 'Alışverişe Devam'],
+        placeholder: 'Mesajınızı yazın...' },
+    },
+    en: {
+      now: 'now', today: 'Today', business: 'Business account', meta: 'This business uses a secure service from Meta to manage this chat.',
+      wa: { notify: (c) => `${c}, the item in your cart is waiting 🛍️`, greeting: (c, b) => `Hi ${c}! 👋 A quick reminder from ${b}.`,
+        productTitle: 'Your pick is almost gone 🛍️', productText: (d, k) => `Complete your order now, your ${d} code is ready: *${k}*`,
+        cta: '🛒 Go to cart', cta2: 'Ask a question', sheetTitle: 'Your discount is in the cart! 🎉', sheetText: (d, k) => `${k} applied: ${d} off your order.`, sheetCta: 'Complete order' },
+      popup: { kicker: 'BEFORE YOU GO', title: (d) => `${d} off is waiting for you`, text: 'Your code for the items in your cart is ready, today only.',
+        cta: 'Show my code', copy: 'Copy', done: 'Copied ✓', toast: (k) => `${k} will be applied at checkout`, close: 'No, thanks' },
+      wheel: { kicker: 'TODAY ONLY', title: 'Spin the wheel, win a discount!', text: 'A surprise is waiting for you.', spin: 'Spin',
+        segments: ['10%', 'FREE SHIP', '15%', 'GIFT', '20%', 'TRY AGAIN', '5%', '25%'], win: 2, resultKicker: 'CONGRATS! 🎉', resultTitle: 'You won an extra',
+        resultText: 'discount, valid for 24 hours.', copy: 'Copy', done: 'Copied ✓', cta: 'Start shopping', sticky: 'will be applied at checkout' },
+      push: { title: (c) => `${c}, your favourite is waiting`, text: 'Take a look before it sells out.', cta: 'View now', cta2: 'Close', site: 'now',
+        landTitle: 'Your favourite', landText: 'Welcome back, it is ready to add to your cart.', landCta: 'Add to cart', landDone: '✓ Added to cart' },
+      agent: { title: 'Shopping Assistant', sub: 'Usually replies instantly', nudge: 'Hi 👋 Can I help you find something?',
+        greeting: (b) => `Hi! I'm the ${b} assistant. How can I help?`, quick: ['Recommendations', 'Outfit ideas', 'Order status'],
+        question: 'I\'m looking for something stylish and comfortable', answer: 'Great choice! Here are a few of this season\'s favourites 👇',
+        cardCta: 'Add to cart', added: '✓ Added', confirm: 'Added to your cart! 🎉 Ready to check out?', final: ['Checkout', 'Keep shopping'], placeholder: 'Type a message...' },
+    },
+  };
+
+  function setup(cfg, forceSurface) {
+    const root = document.documentElement;
+    const surface = forceSurface || (cfg.surface === 'mobile' ? 'mobile' : cfg.surface === 'web' ? 'web' : (root.dataset.surface === 'mobile' ? 'mobile' : 'web'));
+    root.dataset.surface = surface;
+    if (cfg.lang) root.lang = cfg.lang;
+    const site = cfg.site || '';
+    let domain = (cfg.brand && cfg.brand.domain) || '';
+    try { domain = domain || new URL(site).hostname.replace(/^www\./, ''); } catch (e) {}
+    const name = (cfg.brand && cfg.brand.name) || (domain.split('.')[0] || 'Brand').replace(/^./, (c) => c.toUpperCase());
+    root.dataset.name = root.dataset.name || `${domain.split('.')[0]}-${cfg.type}-${surface}`;
+    root.dataset.format = root.dataset.format || 'gif';
+    const color = (cfg.brand && cfg.brand.color) || '#111111', ink = (cfg.brand && cfg.brand.ink) || '#ffffff';
+    root.style.setProperty('--brand', color); root.style.setProperty('--brand-ink', ink); root.style.setProperty('--accent', (cfg.brand && cfg.brand.accent) || color);
+    root.style.setProperty('--chat', color); root.style.setProperty('--chat-ink', ink);
+    let scr = document.querySelector('.uc-screen');
+    if (!scr) { scr = document.createElement('div'); scr.className = 'uc-screen'; document.body.prepend(scr); }
+    scr.innerHTML = '';
+    if (cfg.products) scr.dataset.ucProducts = cfg.products;
+    if (surface === 'mobile') scr.append(h(STATUS));
+    scr.append(h(`<div class="uc-site" data-site="${esc(site)}"></div>`));
+    const L = /^tr/i.test(cfg.lang || root.lang || '') ? TXT.tr : TXT.en;
+    const pick = (key, sub, ...args) => { const v = cfg[key]; if (v != null && v !== '') return v; const d = L[sub][key]; return typeof d === 'function' ? d(...args) : d; };
+    return { scr, surface, mobile: surface === 'mobile', domain, name, L, pick, customer: cfg.customer || (L === TXT.tr ? 'Ayşe' : 'Emma'),
+      coupon: cfg.coupon || (name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8) + '10'), discount: cfg.discount || (L === TXT.tr ? '%10' : '10%') };
+  }
+  const logo = (domain, cls = '') => `<img data-uc-logo="${esc(domain)}" alt="" class="${cls}">`;
+  const bold = (t) => esc(t).replace(/\*([^*]+)\*/g, '<b>$1</b>');
+
+  // ---------------- WhatsApp (always mobile) ----------------
+  function whatsapp(cfg) {
+    const S = setup(cfg, 'mobile'), P = (k, ...a) => S.pick(k, 'wa', ...a);
+    const q = cfg.question, a = cfg.answer;
+    S.scr.append(h(`<div class="ucn-ios sc-ban" id="sc-ban" data-uc-hidden style="top:52px">
+      <div class="ic light">${logo('whatsapp.com')}</div>
+      <div class="main"><div class="l1">${esc(S.name)}<span>${esc(S.L.now)}</span></div><div class="b">${esc(P('notify', S.customer))}</div></div>
+      <img class="thumb" data-uc-product="0" alt=""></div>`));
+    S.scr.append(h(`<div class="ucw sc-wa" id="sc-wa" data-uc-hidden style="top:47px">
+      <div class="ucw-head"><span class="ucw-back">‹</span><div class="ucw-av uc-wlogo">${logo(S.domain)}</div>
+        <div><div class="ucw-name">${esc(S.name)} <span class="ucw-verified">✓</span></div><div class="ucw-sub">${esc(S.L.business)}</div></div><div class="ucw-actions">📹 📞</div></div>
+      <div class="ucw-body"><div class="ucw-list">
+        <div class="ucw-day">${esc(S.L.today)}</div>
+        <div class="ucw-note">${esc(S.L.meta)}</div>
+        <div class="ucw-msg in" id="sc-m1" data-uc-hidden>${bold(P('greeting', S.customer, S.name))}<span class="time">14:02</span></div>
+        <div class="ucw-msg in sc-pmsg" id="sc-m2" data-uc-hidden><img class="media" data-uc-product="0" alt=""><span class="ttl" data-uc-pname="0">${esc(P('productTitle'))}</span><br>${bold(P('productText', S.discount, S.coupon))}<span class="time">14:02</span><div class="foot">${esc(S.name)}</div></div>
+        <div class="ucw-btns" id="sc-btns" data-uc-hidden><button id="sc-cta">${esc(P('cta'))}</button><button>${esc(P('cta2'))}</button></div>
+        ${q ? `<div class="ucw-msg out" id="sc-q" data-uc-hidden>${esc(q)}<span class="time">14:05 <span class="ticks">✓✓</span></span></div>
+        <div class="ucw-typing" id="sc-dots" data-uc-hidden><i></i><i></i><i></i></div>
+        <div class="ucw-msg in" id="sc-a" data-uc-hidden>${bold(a || '')}<span class="time">14:05</span></div>` : ''}
+      </div></div>
+      <div class="ucw-foot"><span style="font-size:26px">+</span><div class="ucw-input"><input id="sc-in" placeholder=""></div><span>📷</span><span>🎤</span></div></div>`));
+    S.scr.append(h(`<div class="uc-dim" id="sc-dim" data-uc-hidden></div>`));
+    S.scr.append(h(`<div class="ucp-sheet sc-sheet" id="sc-sheet" data-uc-hidden><div class="grab"></div>
+      <div class="sc-srow"><img data-uc-product="0" alt=""><div><div class="sc-st">${esc(P('sheetTitle'))}</div><div class="sc-sx">${bold(P('sheetText', S.discount, S.coupon))}</div></div></div>
+      <div class="sc-code">${esc(S.coupon)}</div><button class="sc-btn" id="sc-go">${esc(P('sheetCta'))}</button></div>`));
+
+    const T = UC.timeline({ duration: 30, cursor: 'tap' }), B = '#sc-wa .ucw-body';
+    let t = 1.2;
+    T.show('#sc-ban', t, { anim: 'down', dur: 0.45 });
+    t += 1.8; T.tap('#sc-ban', t);
+    t += 0.3; T.hide('#sc-ban', t, { dur: 0.2 }).show('#sc-wa', t, { anim: 'sheet', dur: 0.45 });
+    t += 0.8; T.show('#sc-m1', t, { anim: 'up', dur: 0.3 });
+    t += 1.3; T.show('#sc-m2', t, { anim: 'up', dur: 0.35 }).chatScroll(B, t);
+    t += 0.6; T.show('#sc-btns', t, { anim: 'up', dur: 0.3 }).chatScroll(B, t);
+    if (q) {
+      t += 2.2; T.tap('#sc-in', t); T.type('#sc-in', q, t + 0.2, { cps: 24 });
+      t += 0.4 + q.length / 24; T.tap('.ucw-foot span:last-child', t, { travel: 0.3 }).clear('#sc-in', t + 0.1);
+      t += 0.15; T.show('#sc-q', t, { anim: 'up', dur: 0.3 }).chatScroll(B, t);
+      t += 0.4; T.show('#sc-dots', t, { anim: 'fade', dur: 0.2 }).chatScroll(B, t);
+      t += 1.1; T.hide('#sc-dots', t, { dur: 0.01 }).show('#sc-a', t, { anim: 'up', dur: 0.3 }).chatScroll(B, t);
+      t += Math.min(3.5, 1.2 + String(a || '').length / 45);
+    } else t += 2.4;
+    T.tap('#sc-cta', t);
+    t += 0.4; T.hide('#sc-wa', t, { anim: 'fade', dur: 0.3 });
+    t += 0.5; T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-sheet', t, { anim: 'sheet', dur: 0.45 });
+    t += 2.4; T.tap('#sc-go', t);
+    T.duration = t + 1.8; window.__UC_DURATION = T.duration;
+    return T;
+  }
+
+  // ---------------- Exit-intent / coupon popup ----------------
+  function popup(cfg) {
+    const S = setup(cfg), P = (k, ...a) => S.pick(k, 'popup', ...a), showImg = cfg.product !== false;
+    const inner = `${logo(S.domain, 'sc-plogo')}
+      <div class="sc-kick">${esc(P('kicker'))}</div><h2>${esc(P('title', S.discount))}</h2><p>${bold(P('text'))}</p>
+      <button class="cta" id="sc-cta">${esc(P('cta'))}</button>
+      <div class="ucp-coupon" id="sc-coupon" data-uc-hidden><div class="code">${esc(S.coupon)}</div><button id="sc-copy">${esc(P('copy'))}</button></div>
+      <div class="sc-no">${esc(P('close'))}</div>`;
+    S.scr.append(h(`<div class="uc-dim" id="sc-dim" data-uc-hidden></div>`));
+    if (S.mobile) {
+      S.scr.append(h(`<div class="ucp-sheet sc-sheet sc-psheet" id="sc-pop" data-uc-hidden><div class="grab"></div>${showImg ? '<img class="sc-hero" data-uc-product="0" alt="">' : ''}${inner}</div>`));
+    } else {
+      S.scr.append(h(`<div class="uc-layer" id="sc-lay" data-uc-hidden><div class="ucp sc-pop${showImg ? ' two' : ''}" id="sc-pop">
+        ${showImg ? '<img class="sc-side" data-uc-product="0" alt="">' : ''}<div class="ucp-pad">${inner}</div><div class="ucp-close">×</div></div></div>`));
+    }
+    S.scr.append(h(`<div class="ucb-toast sc-toast" id="sc-toast" data-uc-hidden><img data-uc-product="0" alt=""><div><b>${esc(S.coupon)}</b><br>${esc(P('toast', S.coupon))}</div></div>`));
+    const T = UC.timeline({ duration: 20, cursorStart: S.mobile ? null : [760, 470] });
+    let t = 1.0;
+    if (!S.mobile && cfg.trigger !== 'time') { T.move([700, 6], t + 0.9, 0.9); t += 1.1; }   // exit intent: pointer leaves the page
+    t += 0.3; T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 });
+    if (S.mobile) T.show('#sc-pop', t, { anim: 'sheet', dur: 0.45 }); else T.show('#sc-lay', t, { anim: 'pop', dur: 0.45 });
+    t += 2.6; T.tap('#sc-cta', t);
+    t += 0.3; T.hide('#sc-cta', t, { dur: 0.15 }).show('#sc-coupon', t + 0.1, { anim: 'pop', dur: 0.35 });
+    t += 1.6; T.tap('#sc-copy', t).text('#sc-copy', esc(P('done')), t + 0.15).cls('#sc-copy', 'ok', t + 0.15);
+    t += 1.3; T.hide(S.mobile ? '#sc-pop' : '#sc-lay', t, { anim: S.mobile ? 'fade' : 'pop', dur: 0.3 }).hide('#sc-dim', t, { dur: 0.3 });
+    t += 0.5; T.show('#sc-toast', t, { anim: 'up', dur: 0.4 });
+    T.duration = t + 2.4; window.__UC_DURATION = T.duration;
+    return T;
+  }
+
+  // ---------------- Spin to win ----------------
+  function wheel(cfg) {
+    const S = setup(cfg), P = (k, ...a) => S.pick(k, 'wheel', ...a);
+    const segs = (Array.isArray(cfg.segments) && cfg.segments.length >= 4 ? cfg.segments : P('segments')).slice(0, 10);
+    const n = segs.length, step = 360 / n, win = Math.max(0, Math.min(n - 1, cfg.win != null ? +cfg.win : (n > 2 ? 2 : 0)));
+    const color = getComputedStyle(document.documentElement).getPropertyValue('--brand').trim() || '#111';
+    const alt = cfg.wheelAlt || '#ffffff';
+    const grad = segs.map((_, i) => `${i % 2 ? alt : color} ${i * step}deg ${(i + 1) * step}deg`).join(',');
+    const size = S.mobile ? 260 : 300;
+    const segHtml = segs.map((lab, i) => `<div class="seg ${i % 2 ? 'd' : 'l'}" style="--a:${(i + 0.5) * step - 90}deg">${esc(lab)}</div>`).join('');
+    const prize = cfg.prize || segs[win];
+    S.scr.append(h(`<div class="uc-dim" id="sc-dim" data-uc-hidden></div>`));
+    S.scr.append(h(`<div class="uc-layer" id="sc-lay" data-uc-hidden><div class="ucp sc-wheelpop${S.mobile ? ' m' : ''}" id="sc-pop">
+      <div class="ucp-close">×</div>
+      <div class="ucp-pad" id="sc-game"><div class="sc-kick">${esc(P('kicker'))}</div><h2>${esc(P('title'))}</h2><p>${esc(P('text'))}</p>
+        <div class="ucp-wheel-wrap" style="--ws:${size}px"><div class="ucp-pointer"></div>
+          <div class="ucp-wheel" id="sc-wheel" style="background:conic-gradient(${grad});--wheel-rim:${color}">${segHtml}<div class="hub">${logo(S.domain)}</div></div></div>
+        <button class="cta" id="sc-spin">${esc(P('spin'))}</button></div>
+      <div class="ucp-pad" id="sc-res" data-uc-hidden><div class="sc-kick">${esc(P('resultKicker'))}</div><h2>${esc(P('resultTitle'))}</h2>
+        <div class="ucp-big">${esc(prize)}</div><p>${esc(P('resultText'))}</p>
+        <div class="ucp-coupon"><div class="code">${esc(S.coupon)}</div><button id="sc-copy">${esc(P('copy'))}</button></div>
+        <button class="cta" id="sc-go">${esc(P('cta'))}</button></div>
+      <div class="ucp-confetti" id="sc-conf"></div></div></div>`));
+    S.scr.append(h(`<div class="sc-sticky" id="sc-sticky" data-uc-hidden><span class="tag">${esc(S.coupon)}</span><span>${esc(prize)} ${esc(P('sticky'))}</span><span class="cd" id="sc-cd">23:59:59</span></div>`));
+    const conf = S.scr.querySelector('#sc-conf'), cols = [color, '#f5b700', '#2e9e5b', '#e03a3a', '#7fb3e6'];
+    for (let i = 0; i < 36; i++) { const c = document.createElement('i'); c.style.left = (3 + (i * 37) % 94) + '%'; c.style.background = cols[i % 5]; conf.appendChild(c); }
+    const T = UC.timeline({ duration: 20, cursorStart: S.mobile ? null : [900, 560] });
+    let t = 1.2;
+    T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-lay', t, { anim: 'pop', dur: 0.5 });
+    t += 1.8; T.tap('#sc-spin', t);
+    t += 0.2; T.spin('#sc-wheel', 1800 - (win + 0.5) * step, t, 3.6).cls('#sc-spin', 'uc-pressed', t, { until: t + 3.6 });
+    t += 4.0; T.hide('#sc-game', t, { dur: 0.2 }).show('#sc-res', t + 0.2, { anim: 'pop', dur: 0.45 }).show('#sc-conf', t + 0.2, { anim: 'none', dur: 0 });
+    [...conf.children].forEach((c, i) => { const x0 = (i % 7 - 3) * 14, rot = (i * 47) % 360, d = (i % 6) * 0.05;
+      T.tween(c, 'transform', 0, 1, t + 0.2 + d, 2.2, { ease: 'linear', fmt: (p) => `translate(${x0 * p}px, ${p * 560}px) rotate(${rot + p * 540}deg)` }); });
+    t += 2.2; T.tap('#sc-copy', t).text('#sc-copy', esc(P('done')), t + 0.15).cls('#sc-copy', 'ok', t + 0.15);
+    t += 1.4; T.tap('#sc-go', t);
+    t += 0.3; T.hide('#sc-lay', t, { anim: 'pop', dur: 0.3 }).hide('#sc-dim', t, { dur: 0.3 });
+    t += 0.4; T.show('#sc-sticky', t, { anim: 'up', dur: 0.45 }).countdown('#sc-cd', 86399, { at: t });
+    T.duration = t + 2.2; window.__UC_DURATION = T.duration;
+    return T;
+  }
+
+  // ---------------- Web push / app push ----------------
+  function push(cfg) {
+    const S = setup(cfg), P = (k, ...a) => S.pick(k, 'push', ...a);
+    const land = (id) => `<img class="sc-hero" data-uc-product="0" alt=""><div class="sc-st" data-uc-pname="0">${esc(P('landTitle'))}</div><div class="sc-sx">${bold(P('landText'))}</div><button class="sc-btn" id="${id}">${esc(P('landCta'))}</button>`;
+    S.scr.append(h(`<div class="uc-dim" id="sc-dim" data-uc-hidden></div>`));
+    if (S.mobile) {
+      S.scr.append(h(`<div class="ucp-sheet sc-sheet sc-land" id="sc-land" data-uc-hidden><div class="grab"></div>${land('sc-buy')}</div>`));
+      S.scr.append(h(`<div class="ucn-lock" id="sc-lock"><div class="clock">9:41</div><div class="date">${esc(cfg.date || '')}</div>
+        <div class="ucn-ios" id="sc-n" data-uc-hidden><div class="ic light">${logo(S.domain)}</div><div class="main"><div class="l1">${esc(S.name)}<span>${esc(S.L.now)}</span></div>
+        <div class="b"><b>${esc(P('title', S.customer))}</b> ${bold(P('text'))}</div></div><img class="thumb" data-uc-product="0" alt=""></div></div>`));
+      const T = UC.timeline({ duration: 14, cursor: 'tap' });
+      let t = 1.0; T.show('#sc-n', t, { anim: 'up', dur: 0.45 });
+      t += 2.6; T.tap('#sc-n', t);
+      t += 0.3; T.hide('#sc-lock', t, { anim: 'fade', dur: 0.35 });
+      t += 0.8; T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-land', t, { anim: 'sheet', dur: 0.45 });
+      t += 2.2; T.tap('#sc-buy', t).text('#sc-buy', esc(P('landDone')), t + 0.15).cls('#sc-buy', 'ok', t + 0.15);
+      T.duration = t + 1.8; window.__UC_DURATION = T.duration; return T;
+    }
+    S.scr.append(h(`<div class="ucn-web" id="sc-n" data-uc-hidden><div class="top"><span class="chrome"></span>Google Chrome · ${esc(S.domain)}<span style="margin-left:auto">${esc(S.L.now)}</span></div>
+      <div class="row"><div class="ic light">${logo(S.domain)}</div><div><div class="t">${esc(P('title', S.customer))}</div><div class="b">${bold(P('text'))}</div><div class="via">${esc(S.domain)}</div></div></div>
+      <img class="hero" data-uc-product="0" alt=""><div class="acts"><button id="sc-cta">${esc(P('cta'))}</button><button>${esc(P('cta2'))}</button></div></div>`));
+    S.scr.append(h(`<div class="uc-layer" id="sc-lay" data-uc-hidden><div class="ucp sc-pop two sc-qv"><img class="sc-side" data-uc-product="0" alt=""><div class="ucp-pad">${logo(S.domain, 'sc-plogo')}${land('sc-buy')}</div><div class="ucp-close">×</div></div></div>`));
+    const T = UC.timeline({ duration: 14, cursorStart: [700, 520] });
+    let t = 1.2; T.show('#sc-n', t, { anim: 'left', dur: 0.45 });
+    t += 3.0; T.tap('#sc-cta', t, { travel: 0.9 });
+    t += 0.4; T.hide('#sc-n', t, { anim: 'fade', dur: 0.3 });
+    t += 0.5; T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-lay', t, { anim: 'pop', dur: 0.45 });
+    t += 2.4; T.tap('#sc-buy', t, { travel: 0.8 }).text('#sc-buy', esc(P('landDone')), t + 0.15).cls('#sc-buy', 'ok', t + 0.15);
+    T.duration = t + 1.8; window.__UC_DURATION = T.duration; return T;
+  }
+
+  // ---------------- Agent One ----------------
+  function agent(cfg) {
+    const S = setup(cfg), P = (k, ...a) => S.pick(k, 'agent', ...a);
+    const cards = cfg.cards !== false, n = Math.max(2, Math.min(3, +cfg.count || 3));
+    const quick = (Array.isArray(cfg.quick) ? cfg.quick : P('quick')).slice(0, 3), fin = (Array.isArray(cfg.final) ? cfg.final : P('final')).slice(0, 2);
+    const av = `<div class="ucc-av uc-wlogo">${logo(S.domain)}</div>`;
+    const prices = Array.isArray(cfg.prices) ? cfg.prices : [];
+    const cardHtml = Array.from({ length: n }, (_, i) => `<div class="ucc-card"><div class="img"><img data-uc-product="${i}" alt=""></div><div class="t" data-uc-pname="${i}">${esc((cfg.labels && cfg.labels[i]) || '')}</div>${prices[i] ? `<div class="p">${esc(prices[i])}</div>` : ''}<button id="sc-add${i}">${esc(P('cardCta'))}</button></div>`).join('');
+    S.scr.append(h(`<div class="ucc-launcher brand" id="sc-launch">${logo(S.domain)}</div>`));
+    S.scr.append(h(`<div class="ucc-nudge" id="sc-nudge" data-uc-hidden>${esc(P('nudge'))}</div>`));
+    if (!S.mobile) S.scr.append(h(`<div class="uc-dim light" id="sc-dim" data-uc-hidden></div>`));
+    S.scr.append(h(`<div class="ucc ${S.mobile ? 'mobile' : 'web wide'}" id="sc-chat" data-uc-hidden>
+      <div class="ucc-head"><div class="logo uc-wlogo sc-hlogo">${logo(S.domain)}</div><div><div class="title">${esc(P('title'))}</div><div class="sub">${esc(P('sub'))}</div></div><div class="ctl"><span>–</span><span>×</span></div></div>
+      <div class="ucc-body" id="sc-body"><div class="ucc-list">
+        <div class="ucc-row bot" id="sc-m1" data-uc-hidden>${av}<div class="ucc-msg">${bold(P('greeting', S.name))}</div></div>
+        <div class="ucc-qr" id="sc-q1" data-uc-hidden>${quick.map((x) => `<button>${esc(x)}</button>`).join('')}</div>
+        <div class="ucc-row me" id="sc-u1" data-uc-hidden><div class="ucc-msg">${esc(P('question'))}</div></div>
+        <div class="ucc-row bot" id="sc-d1" data-uc-hidden>${av}<div class="ucc-typing"><i></i><i></i><i></i></div></div>
+        <div class="ucc-row bot" id="sc-m2" data-uc-hidden>${av}<div class="ucc-msg">${bold(P('answer'))}</div></div>
+        ${cards ? `<div class="ucc-cards sc-cards" id="sc-cards" data-uc-hidden>${cardHtml}</div>
+        <div class="ucc-row bot" id="sc-d2" data-uc-hidden>${av}<div class="ucc-typing"><i></i><i></i><i></i></div></div>
+        <div class="ucc-row bot" id="sc-m3" data-uc-hidden>${av}<div class="ucc-msg">${bold(P('confirm'))}</div></div>` : ''}
+        <div class="ucc-qr" id="sc-q2" data-uc-hidden>${fin.map((x, i) => `<button class="${i ? '' : 'sel'}">${esc(x)}</button>`).join('')}</div>
+      </div></div>
+      <div class="ucc-foot"><input id="sc-in" placeholder="${esc(P('placeholder'))}"><div class="send"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 20l18-8L3 4v6l12 2-12 2z"/></svg></div></div></div>`));
+    const T = UC.timeline({ duration: 30, cursorStart: S.mobile ? null : [880, 500] }), B = '#sc-body', Q = P('question');
+    let t = 0.8;
+    T.show('#sc-nudge', t, { anim: 'left', dur: 0.4 });
+    t += 1.6; T.tap('#sc-launch', t, { travel: 0.9 });
+    t += 0.15; T.hide('#sc-nudge', t, { dur: 0.15 });
+    if (!S.mobile) T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 });
+    T.show('#sc-chat', t, { anim: S.mobile ? 'sheet' : 'up', dur: 0.45 });
+    t += 0.6; T.show('#sc-m1', t, { anim: 'up', dur: 0.3 });
+    t += 0.5; T.show('#sc-q1', t, { anim: 'fade', dur: 0.3 });
+    t += 1.0; T.tap('#sc-in', t, { travel: 0.6 }); T.type('#sc-in', Q, t + 0.2, { cps: 24 });
+    t += 0.4 + Q.length / 24; T.tap('#sc-chat .ucc-foot .send', t, { travel: 0.3 }).clear('#sc-in', t + 0.1);
+    t += 0.15; T.hide('#sc-q1', t, { dur: 0.01 }).show('#sc-u1', t, { anim: 'up', dur: 0.3 }).chatScroll(B, t);
+    t += 0.3; T.show('#sc-d1', t, { anim: 'fade', dur: 0.2 }).chatScroll(B, t);
+    t += 1.0; T.hide('#sc-d1', t, { dur: 0.01 }).show('#sc-m2', t, { anim: 'up', dur: 0.3 }).chatScroll(B, t);
+    if (cards) {
+      t += 0.6; T.show('#sc-cards', t, { anim: 'left', dur: 0.5 }).chatScroll(B, t, 0.5);
+      t += 2.0; T.tap('#sc-add0', t, { travel: 0.8 }).text('#sc-add0', esc(P('added')), t + 0.15).cls('#sc-add0', 'done', t + 0.15);
+      t += 0.6; T.show('#sc-d2', t, { anim: 'fade', dur: 0.2 }).chatScroll(B, t);
+      t += 0.9; T.hide('#sc-d2', t, { dur: 0.01 }).show('#sc-m3', t, { anim: 'up', dur: 0.3 }).chatScroll(B, t);
+    }
+    t += 0.5; T.show('#sc-q2', t, { anim: 'fade', dur: 0.3 }).chatScroll(B, t);
+    t += 1.4; T.tap('#sc-q2 button', t, { travel: 0.7 });
+    T.duration = t + 1.6; window.__UC_DURATION = T.duration;
+    return T;
+  }
+
+  const SCENES = { whatsapp, popup, wheel, push, agent };
+  window.UC.scene = function (cfg) {
+    cfg = cfg || {};
+    const f = SCENES[String(cfg.type || '').toLowerCase()];
+    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, push or agent)');
+    if (!cfg.site) throw new Error('UC.scene: "site" (the brand page URL) is required');
+    return f(cfg);
   };
 })();
