@@ -349,10 +349,11 @@
     const p = (async () => {
       const d = await mlJSON(`url=${encodeURIComponent(url)}&meta=false&data.src.selectorAll=${sel}&data.src.attr=src&data.alt.selectorAll=${sel}&data.alt.attr=alt`);
       const src = d.src || [], alt = d.alt || [], seen = new Set(), cands = [];
+      const aligned = src.length === alt.length;   // if the service dropped values, names would be shifted: use photos only
       const BAD = /\.svg|logo|icon|sprite|payment|visa|master|etbis|badge|flag|avatar|placeholder|loading|blank|pixel|[_-](size)?\d{1,2}x\d{1,2}(?=[_.\-/?]|$)|[?&](w|width)=\d{1,2}(?!\d)/i;
       src.forEach((s, i) => {
-        const name = String(alt[i] || '').replace(/\s+/g, ' ').trim();
-        if (!s || BAD.test(s) || seen.has(s) || !name || /sepete ekle|add to (cart|bag)|^logo/i.test(name)) return;
+        const name = aligned ? String(alt[i] || '').replace(/\s+/g, ' ').trim() : '';
+        if (!s || BAD.test(s) || seen.has(s) || (aligned && (!name || /sepete ekle|add to (cart|bag)|^logo|club|cart|basket|sepet/i.test(name)))) return;
         seen.add(s); cands.push({ src: s, name });
       });
       const checked = await Promise.all(cands.slice(0, 36).map((c) => new Promise((res) => {
@@ -360,7 +361,7 @@
         im.onerror = () => res(null); im.src = c.src;
       })));
       const names = new Set();
-      return checked.filter((c) => c && !names.has(c.name) && names.add(c.name));
+      return checked.filter((c) => c && (!c.name || (!names.has(c.name) && names.add(c.name))));
     })();
     productLists.set(url, p); return p;
   }
@@ -374,7 +375,7 @@
       let host; try { host = absUrl(img.dataset.ucLogo || (site && site.dataset.site) || ''); } catch (e) { return; }
       pendingAssets.push(mountLogo(img, host));
     });
-    const pimgs = [...document.querySelectorAll('img[data-uc-product]')];
+    const pimgs = [...document.querySelectorAll('img[data-uc-product]')].filter((img) => !img.dataset.ucMounted && (img.dataset.ucMounted = '1'));
     if (pimgs.length) pendingAssets.push((async () => {
       const groups = new Map();
       pimgs.forEach((img) => { const from = (img.closest('[data-uc-products]') || {}).dataset?.ucProducts || (site && site.dataset.site); if (from) { const u = absUrl(from); if (!groups.has(u)) groups.set(u, []); groups.get(u).push(img); } });
@@ -384,7 +385,7 @@
         await Promise.all(list.map(async (img) => {
           const p = prods[+img.dataset.ucProduct || 0]; if (!p) { missing++; img.classList.add('uc-noimg'); return; }
           try { await loadImg(img, p.src); } catch (e) { missing++; img.classList.add('uc-noimg'); }
-          document.querySelectorAll(`[data-uc-pname="${img.dataset.ucProduct}"]`).forEach((n) => { n.textContent = p.name; });
+          if (p.name) document.querySelectorAll(`[data-uc-pname="${img.dataset.ucProduct}"]`).forEach((n) => { n.textContent = p.name; });
         }));
       }
       if (missing) note('warn', T_.prodFail, 'Some product photos could not be taken from the page. Point the product cards at a category page of the site with data-uc-products="https://…", or ask me for a screenshot.');
@@ -454,6 +455,7 @@
   addEventListener('load', () => setTimeout(() => {
     if (RAW) return;
     if (!stage) mountStage();
+    mountSites();   // pick up logo / product slots that page scripts cloned after start
     if (!current) report(T_.noTimeline);
     const bad = [...document.querySelectorAll('#uc-stage img')].filter((i) => !i.closest('.uc-site') && !i.hasAttribute('data-uc-logo') && i.getAttribute('src') && i.complete && i.naturalWidth === 0).map((i) => i.getAttribute('src'));
     if (bad.length) note('warn', bad.length + T_.badImgs,
