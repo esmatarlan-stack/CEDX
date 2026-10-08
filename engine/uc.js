@@ -531,6 +531,7 @@
     get duration() { return current ? current.duration : 0; },
     play() { setPlaying(true); }, pause() { setPlaying(false); },
     export: (kind) => doExport(kind || 'gif'),
+    version: '7',
     ease, clamp, lerp,
   };
 })();
