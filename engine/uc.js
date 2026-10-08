@@ -350,10 +350,10 @@
       const d = await mlJSON(`url=${encodeURIComponent(url)}&meta=false&data.src.selectorAll=${sel}&data.src.attr=src&data.alt.selectorAll=${sel}&data.alt.attr=alt`);
       const src = d.src || [], alt = d.alt || [], seen = new Set(), cands = [];
       const aligned = src.length === alt.length;   // if the service dropped values, names would be shifted: use photos only
-      const BAD = /\.svg|logo|icon|sprite|payment|visa|master|etbis|badge|flag|avatar|placeholder|loading|blank|pixel|[_-](size)?\d{1,2}x\d{1,2}(?=[_.\-/?]|$)|[?&](w|width)=\d{1,2}(?!\d)/i;
+      const BAD = /\.svg|logo|icon|sprite|payment|visa|master|etbis|qr|ssl|secure|trust|badge|flag|avatar|placeholder|loading|blank|pixel|app-?store|google-?play|footer|[_-](size)?\d{1,2}x\d{1,2}(?=[_.\-/?]|$)|[?&](w|width)=\d{1,2}(?!\d)/i;
       src.forEach((s, i) => {
         const name = aligned ? String(alt[i] || '').replace(/\s+/g, ' ').trim() : '';
-        if (!s || BAD.test(s) || seen.has(s) || (aligned && (!name || /sepete ekle|add to (cart|bag)|^logo|club|cart|basket|sepet/i.test(name)))) return;
+        if (!s || BAD.test(s) || seen.has(s) || (aligned && (!name || /sepete ekle|add to (cart|bag)|^logo|club|cart|basket|sepet|etbis|kayıtlı|qr|güvenli|secure|ssl|app ?store|google play|apple|visa|mastercard/i.test(name)))) return;
         seen.add(s); cands.push({ src: s, name });
       });
       const checked = await Promise.all(cands.slice(0, 36).map((c) => new Promise((res) => {
@@ -361,7 +361,14 @@
         im.onerror = () => res(null); im.src = c.src;
       })));
       const names = new Set();
-      return checked.filter((c) => c && (!c.name || (!names.has(c.name) && names.add(c.name))));
+      let ok = checked.filter((c) => c && (!c.name || (!names.has(c.name) && names.add(c.name))));
+      // Product photos on a page share one image folder (e.g. cdn.brand.com/products/…). Keep the biggest
+      // such group so footer badges, QR codes and campaign banners from other folders drop out.
+      const key = (u) => { try { const x = new URL(u); return x.host + '/' + x.pathname.split('/').filter(Boolean).slice(0, 1).join('/'); } catch (e) { return u; } };
+      const groups = {}; ok.forEach((c) => { (groups[key(c.src)] = groups[key(c.src)] || []).push(c); });
+      const top = Object.values(groups).sort((a, b) => b.length - a.length)[0];
+      if (top && top.length >= 3) ok = top;
+      return ok;
     })();
     productLists.set(url, p); return p;
   }
