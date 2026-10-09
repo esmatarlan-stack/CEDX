@@ -341,9 +341,22 @@
     img.style.display = 'none'; msg.textContent = T_.siteFail;
     note('warn', T_.siteFail, 'The screenshot service could not capture ' + url + '. Suggest another page of the same site (e.g. a category page); if that also fails, ask me for a screenshot.');
   }
+  // Logos. Square icons (avatars, notification icons, launcher) come from the site's own app/fav icon via
+  // Google's favicon service: it is the brand's real mark and never a footer badge. Wide logos (popup header)
+  // use the logo the screenshot service finds on the page, unless it looks like a payment / trust badge.
+  const NOT_LOGO = /master|visa|troy|amex|paypal|iyzico|pay|etbis|ssl|secure|trust|cookie|badge|app-?store|google-?play|qr/i;
+  const favicon = (host, sz) => `https://www.google.com/s2/favicons?domain=${new URL(host).hostname}&sz=${sz}`;
+  async function tryImg(img, src, minW) { await loadImg(img, src); if (img.naturalWidth < (minW || 1)) throw new Error('too small'); }
   async function mountLogo(img, host) {
-    try { const d = await mlJSON(`url=${encodeURIComponent(new URL(host).origin + '/')}&meta=true`); if (d.logo && d.logo.url) { await loadImg(img, d.logo.url); return; } } catch (e) {}
-    try { await loadImg(img, `https://www.google.com/s2/favicons?domain=${new URL(host).hostname}&sz=256`); } catch (e) { img.style.visibility = 'hidden'; }
+    const wide = img.classList.contains('sc-plogo') || img.hasAttribute('data-uc-logo-wide');
+    const fromPage = async () => {
+      const d = await mlJSON(`url=${encodeURIComponent(new URL(host).origin + '/')}&meta=true`);
+      const u = d.logo && d.logo.url; if (!u || NOT_LOGO.test(u)) throw new Error('no logo');
+      await tryImg(img, u, 16);
+    };
+    const steps = wide ? [fromPage, () => tryImg(img, favicon(host, 256), 64)] : [() => tryImg(img, favicon(host, 256), 64), fromPage, () => tryImg(img, favicon(host, 64), 16)];
+    for (const step of steps) { try { await step(); return; } catch (e) {} }
+    img.style.visibility = 'hidden';
   }
   // Product photos: every <img> with a real src + alt on the page, then keep the ones that look like
   // product shots (not icons, logos, payment badges or wide banners), paired with their alt text as name.
