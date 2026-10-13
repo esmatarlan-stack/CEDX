@@ -344,6 +344,13 @@
   // Logos. Square icons (avatars, notification icons, launcher) come from the site's own app/fav icon via
   // Google's favicon service: it is the brand's real mark and never a footer badge. Wide logos (popup header)
   // use the logo the screenshot service finds on the page, unless it looks like a payment / trust badge.
+  const APP_ICONS = {
+    'whatsapp.com': ['https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg', 'https://static.whatsapp.net/rsrc.php/v4/yz/r/ujTY9i_Jhs1.png'],
+    'instagram.com': ['https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg'],
+    'gmail.com': ['https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg'],
+    'messenger.com': ['https://upload.wikimedia.org/wikipedia/commons/b/be/Facebook_Messenger_logo_2020.svg'],
+    'telegram.org': ['https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg'],
+  };
   const NOT_LOGO = /master|visa|troy|amex|paypal|iyzico|pay|etbis|ssl|secure|trust|cookie|badge|app-?store|google-?play|qr/i;
   const favicon = (host, sz) => `https://www.google.com/s2/favicons?domain=${new URL(host).hostname}&sz=${sz}`;
   async function tryImg(img, src, minW) { await loadImg(img, src); if (img.naturalWidth < (minW || 1)) throw new Error('too small'); }
@@ -354,7 +361,14 @@
       const u = d.logo && d.logo.url; if (!u || NOT_LOGO.test(u)) throw new Error('no logo');
       await tryImg(img, u, 16);
     };
-    const steps = wide ? [fromPage, () => tryImg(img, favicon(host, 256), 64)] : [() => tryImg(img, favicon(host, 256), 64), fromPage, () => tryImg(img, favicon(host, 64), 16)];
+    const hostname = new URL(host).hostname.replace(/^www\./, '');
+    const ddg = () => tryImg(img, `https://icons.duckduckgo.com/ip3/${hostname}.ico`, 16);
+    // Messaging / social apps: their official app icon (their websites only show a white logo, invisible on
+    // a notification). Never the page logo for these.
+    const app = APP_ICONS[hostname];
+    const steps = app ? [...app.map((u) => () => tryImg(img, u, 16)), () => tryImg(img, favicon(host, 128), 32), ddg]
+      : wide ? [fromPage, () => tryImg(img, favicon(host, 256), 64), ddg]
+      : [() => tryImg(img, favicon(host, 256), 64), () => tryImg(img, favicon(host, 128), 48), ddg, fromPage, () => tryImg(img, favicon(host, 64), 16)];
     for (const step of steps) { try { await step(); return; } catch (e) {} }
     img.style.visibility = 'hidden';
   }
