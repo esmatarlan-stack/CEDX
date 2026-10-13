@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en" data-format="gif">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Use Case Creator · Preview</title>
+<link rel="stylesheet" href="./uc.css">
+<style>html, body { margin: 0; height: 100%; }</style>
+</head>
+<body>
+<div class="uc-screen"><p style="font: 15px system-ui; padding: 24px; color: #666">Loading the preview…</p></div>
+<script src="./uc.js"></script>
+<script>
+/* Opens a scene from the link the Gem gives in chat, e.g.
+ * play.html?type=whatsapp&surface=mobile&site=https://www.lcw.com/kadin-giyim-t-10&brand=LC+Waikiki&color=00529B&lang=tr&customer=Ayşe&coupon=LCW10&discount=%2510
+ * Any other parameter is a text key of the scene (notify, greeting, title, cta…). Lists (segments, quick, final, prices)
+ * are separated with "|". A full JSON config also works: play.html?c=<url-encoded JSON>.                              */
+(function () {
+  const q = new URLSearchParams(location.search + (location.hash.length > 1 ? '&' + location.hash.slice(1) : ''));
+  let cfg = {};
+  if (q.get('c')) { try { cfg = JSON.parse(q.get('c')); } catch (e) { throw new Error('The link is broken (c= is not valid JSON). Ask the Gem for the link again.'); } }
+  const LISTS = ['segments', 'quick', 'final', 'prices', 'labels'];
+  const BRAND = { brand: 'name', color: 'color', ink: 'ink', accent: 'accent', domain: 'domain' };
+  q.forEach((v, k) => {
+    if (k === 'c') return;
+    v = v.trim();
+    if (BRAND[k]) { cfg.brand = cfg.brand || {}; cfg.brand[BRAND[k]] = /^(color|ink|accent)$/.test(k) && /^[0-9a-f]{3,8}$/i.test(v) ? '#' + v : v; return; }
+    if (LISTS.includes(k)) { cfg[k] = v.split('|').map((x) => x.trim()).filter(Boolean); return; }
+    if (k === 'win' || k === 'count') { cfg[k] = +v; return; }
+    if (k === 'cards' || k === 'product') { cfg[k] = !/^(0|false|no)$/i.test(v); return; }
+    cfg[k] = v;
+  });
+  // discount=10 → "%10" (Turkish) / "10%" (other languages); avoids "%" in links
+  if (cfg.discount && /^\d+([.,]\d+)?$/.test(String(cfg.discount))) cfg.discount = /^tr/i.test(cfg.lang || '') ? '%' + cfg.discount : cfg.discount + '%';
+  // {discount} {coupon} {customer} {brand} in texts (so links never need a raw "%")
+  const tok = { discount: cfg.discount || '', coupon: cfg.coupon || '', customer: cfg.customer || '', brand: (cfg.brand && cfg.brand.name) || '' };
+  const pct = (n) => /^tr/i.test(cfg.lang || '') ? '%' + n : n + '%';
+  const fill = (v) => typeof v === 'string' ? v.replace(/\{pct:(\d+(?:[.,]\d+)?)\}/g, (_, n) => pct(n)).replace(/\{(discount|coupon|customer|brand)\}/g, (_, k) => tok[k]) : Array.isArray(v) ? v.map(fill) : v;
+  Object.keys(cfg).forEach((k) => { if (k !== 'brand') cfg[k] = fill(cfg[k]); });
+  if (cfg.lang) document.documentElement.lang = cfg.lang;
+  if (cfg.format) document.documentElement.dataset.format = cfg.format;
+  const name = (cfg.brand && cfg.brand.name) || '';
+  document.title = (name ? name + ' · ' : '') + (cfg.type || 'preview');
+  UC.scene(cfg);
+})();
+</script>
+</body>
+</html>
