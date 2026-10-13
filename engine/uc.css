@@ -559,3 +559,9 @@ img.uc-noimg { visibility: hidden; }
 .sc-land .sc-hero { display: block; width: 100%; height: 300px; object-fit: cover; border-radius: 14px; margin-bottom: 14px; background: #f2f2f2; }
 .sc-land .sc-btn, .sc-qv .sc-btn { margin-top: 16px; }
 .sc-qv .sc-st { font-size: 24px; }
+/* no product photo found (e.g. a home page): collapse the photo areas instead of leaving gaps */
+.sc-pop.two:has(> .sc-side.uc-noimg) { --pw: 520px; display: block; text-align: center; }
+.sc-pop.two:has(> .sc-side.uc-noimg) .sc-side { display: none; }
+.sc-pop.two:has(> .sc-side.uc-noimg) .ucp-pad { padding: 36px 40px; }
+.sc-pop.two:has(> .sc-side.uc-noimg) .sc-plogo { margin: 0 auto 18px; }
+img.sc-hero.uc-noimg, .sc-toast img.uc-noimg, .ucn-ios img.thumb.uc-noimg, .ucn-web img.hero.uc-noimg, .sc-srow img.uc-noimg, .sc-pmsg img.media.uc-noimg { display: none; }
