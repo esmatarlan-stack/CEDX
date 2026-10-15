@@ -565,3 +565,64 @@ img.uc-noimg { visibility: hidden; }
 .sc-pop.two:has(> .sc-side.uc-noimg) .ucp-pad { padding: 36px 40px; }
 .sc-pop.two:has(> .sc-side.uc-noimg) .sc-plogo { margin: 0 auto 18px; }
 img.sc-hero.uc-noimg, .sc-toast img.uc-noimg, .ucn-ios img.thumb.uc-noimg, .ucn-web img.hero.uc-noimg, .sc-srow img.uc-noimg, .sc-pmsg img.media.uc-noimg { display: none; }
+
+/* ---------- journey scene ---------- */
+.sc-jcap { position: absolute; left: 50%; top: 18px; translate: -50% 0; z-index: 90; height: 44px; }
+.sc-jchip { position: absolute; left: 50%; top: 0; translate: -50% 0; white-space: nowrap; background: #111; color: #fff; font: 600 15px/1 var(--ui); padding: 12px 18px 12px 12px; border-radius: 999px; display: flex; gap: 10px; align-items: center; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.sc-jchip b { background: var(--brand); color: var(--brand-ink); width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.sc-jbrowse { z-index: 1; }
+.sc-phone { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: 300px; height: 620px; background: #111; border-radius: 46px; padding: 11px; box-shadow: 0 30px 70px rgba(0,0,0,.45); z-index: 60; }
+.sc-phone > .scr { width: 100%; height: 100%; border-radius: 36px; overflow: hidden; background: #fff; position: relative; font-family: var(--ios); }
+.sc-ighead { height: 64px; display: flex; align-items: flex-end; gap: 8px; padding: 0 14px 10px; border-bottom: 1px solid #eee; font: 700 17px/1 var(--ios); }
+.sc-appic { width: 22px; height: 22px; object-fit: contain; border-radius: 6px; }
+.sc-igtop { display: flex; align-items: center; gap: 9px; padding: 10px 12px; font: 13px/1.2 var(--ios); }
+.sc-igtop small { display: block; color: #777; font-size: 11px; }
+.sc-igtop .dots { margin-left: auto; color: #555; letter-spacing: 1px; }
+.sc-av { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #e5e5e5; flex: 0 0 32px; }
+.sc-igimg { display: block; width: 100%; height: 300px; object-fit: cover; background: #f1f1f1; }
+.sc-igcta { display: flex; justify-content: space-between; align-items: center; background: var(--brand); color: var(--brand-ink); font: 600 14px/1 var(--ios); padding: 13px 14px; }
+.sc-igcta span { font-size: 20px; }
+.sc-igact { padding: 10px 14px 4px; font-size: 18px; color: #222; }
+.sc-igcap { padding: 0 14px; font: 13px/1.35 var(--ios); color: #222; }
+.sc-learn { position: absolute; right: 26px; top: 90px; width: 300px; background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.25); z-index: 30; font-family: var(--ui); }
+.sc-learn .t { font: 700 14px/1.3 var(--ui); margin-bottom: 10px; color: #111; }
+.sc-learn .tag { display: inline-block; margin: 0 6px 8px 0; padding: 8px 12px; border-radius: 999px; background: var(--brand); color: var(--brand-ink); font: 600 13px/1 var(--ui); }
+.sc-recs { position: absolute; left: 50%; translate: -50% 0; bottom: 22px; width: 1060px; background: #fff; border-radius: 18px; padding: 16px 18px; box-shadow: 0 -10px 40px rgba(0,0,0,.25); z-index: 30; font-family: var(--ui); }
+.sc-recs .hd { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 18px; color: #111; }
+.sc-recs .badge { background: var(--brand); color: var(--brand-ink); font: 600 12px/1 var(--ui); padding: 7px 10px; border-radius: 999px; }
+.sc-recs .row { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+.sc-recs .card { position: relative; border-radius: 12px; overflow: hidden; background: #f6f6f6; transition: none; }
+.sc-recs .card img { display: block; width: 100%; height: 190px; object-fit: cover; background: #eee; }
+.sc-recs .card span { display: block; padding: 8px 10px; font: 600 12.5px/1.3 var(--ui); color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-recs .card span:empty { display: none; }
+.sc-recs .card em { position: absolute; left: 8px; top: 8px; background: #111; color: #fff; font: 600 11px/1 var(--ui); font-style: normal; padding: 6px 8px; border-radius: 6px; }
+.sc-recs .card.hov { box-shadow: 0 0 0 3px var(--brand); }
+.sc-signup { --pw: 460px; text-align: center; }
+.sc-signup h2 { font: 800 23px/1.25 var(--font); margin: 4px 0 8px; }
+.sc-signup p { color: #555; font-size: 14px; }
+.sc-field { margin: 18px 0 12px; }
+.sc-field input { width: 100%; height: 48px; border: 1.5px solid #d4d4d8; border-radius: 10px; padding: 0 14px; font: 15px var(--font); color: #111; background: #fff; }
+.sc-signup .cta { width: 100%; }
+.sc-ok { margin-top: 12px; height: 48px; border-radius: 10px; background: #2e9e5b; color: #fff; display: flex; align-items: center; justify-content: center; font: 700 16px/1 var(--font); }
+.sc-chans { position: absolute; inset: 0; z-index: 60; }
+.sc-chans .sc-phone { translate: none; top: 74px; height: 600px; width: 290px; }
+.sc-chans > :nth-child(1) { left: 40px; } .sc-chans > :nth-child(2) { left: 495px; } .sc-chans > :nth-child(3) { left: 950px; }
+.sc-chans .sc-mailcard { position: absolute; top: 90px; width: 400px; }
+.sc-chans > .sc-mailcard:nth-child(2) { left: 440px; } .sc-chans > .sc-mailcard:nth-child(3) { left: 840px; }
+.sc-mailcard { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.4); font-family: var(--font); }
+.sc-mailcard .bar { background: #f3f4f6; padding: 12px 14px; display: flex; gap: 10px; align-items: center; font-size: 13.5px; color: #111; border-bottom: 1px solid #e5e7eb; }
+.sc-mailcard .body { padding: 18px; text-align: center; }
+.sc-mailcard .lg .sc-plogo { margin: 0 auto 12px; }
+.sc-mailcard h3 { font: 800 19px/1.25 var(--font); margin-bottom: 12px; color: #111; }
+.sc-mailcard .g { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.sc-mailcard .g img { width: 100%; height: 140px; object-fit: cover; border-radius: 8px; background: #eee; }
+.sc-mailcard .btn { margin: 14px auto 2px; width: 70%; height: 44px; border-radius: 10px; background: var(--brand); color: var(--brand-ink); display: flex; align-items: center; justify-content: center; font: 700 15px/1 var(--font); }
+.sc-smsscr { background: #fff; padding-top: 40px; }
+.sc-smsscr .who { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+.sc-smsscr .who .sc-av { width: 44px; height: 44px; }
+.sc-smsscr .day { text-align: center; color: #888; font-size: 11px; margin: 12px 0; }
+.sc-smsscr .bub { margin: 0 12px; background: #e9e9eb; color: #111; border-radius: 18px; padding: 10px 13px; font: 14px/1.35 var(--ios); }
+.sc-phone > .scr.sc-lock { background: linear-gradient(160deg, #23324a, #0e1522); color: #fff; padding-top: 60px; }
+.sc-lock .clock { text-align: center; font: 300 64px/1 var(--ios); margin-bottom: 60px; }
+.sc-lock .ucn-ios { position: relative; left: auto; right: auto; top: auto; margin: 0 8px; }
+#sc-ad { top: calc(50% + 26px); height: 610px; }

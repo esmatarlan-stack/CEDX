@@ -19,7 +19,7 @@
   const q = new URLSearchParams(location.search + (location.hash.length > 1 ? '&' + location.hash.slice(1) : ''));
   let cfg = {};
   if (q.get('c')) { try { cfg = JSON.parse(q.get('c')); } catch (e) { throw new Error('The link is broken (c= is not valid JSON). Ask the Gem for the link again.'); } }
-  const LISTS = ['segments', 'quick', 'final', 'prices', 'labels'];
+  const LISTS = ['segments', 'quick', 'final', 'prices', 'labels', 'steps', 'channels', 'tags'];
   const BRAND = { brand: 'name', color: 'color', ink: 'ink', accent: 'accent', domain: 'domain' };
   q.forEach((v, k) => {
     if (k === 'c') return;

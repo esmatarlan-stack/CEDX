@@ -626,7 +626,7 @@
     try { domain = domain || new URL(site).hostname.replace(/^www\./, ''); } catch (e) {}
     const name = (cfg.brand && cfg.brand.name) || (domain.split('.')[0] || 'Brand').replace(/^./, (c) => c.toUpperCase());
     root.dataset.name = root.dataset.name || `${domain.split('.')[0]}-${cfg.type}-${surface}`;
-    root.dataset.format = root.dataset.format || 'gif';
+    root.dataset.format = cfg.format || (cfg.type === 'journey' ? 'mp4' : (root.dataset.format || 'gif'));
     const color = (cfg.brand && cfg.brand.color) || '#111111', ink = (cfg.brand && cfg.brand.ink) || '#ffffff';
     root.style.setProperty('--brand', color); root.style.setProperty('--brand-ink', ink); root.style.setProperty('--accent', (cfg.brand && cfg.brand.accent) || color);
     root.style.setProperty('--chat', color); root.style.setProperty('--chat-ink', ink);
@@ -849,11 +849,118 @@
     return T;
   }
 
-  const SCENES = { whatsapp, popup, wheel, push, agent };
+  // ---------------- Journey: multi-step personalization story (web) ----------------
+  // ad (social ad on a phone) → browse (category page + "learning" panel) → home (personalized recommendations)
+  // → signup (account creation) → channels (email / SMS / push / WhatsApp side by side). Steps are optional.
+  const JTXT = {
+    tr: { labels: { ad: 'Sosyal medya reklamı', browse: 'Sitede geziniyor', home: 'Ana sayfa kişiselleşiyor', signup: 'Hesap oluşturuyor', channels: 'Tüm kanallarda tanınıyor' },
+      adText: 'Yeni sezon burada. Keşfet 👇', adCta: 'Hemen Alışveriş Yap', sponsored: 'Sponsorlu', learning: 'Insider ilgi alanlarını öğreniyor',
+      tags: ['Kategori ilgisi', 'Marka tercihi', 'Fiyat aralığı'], homeTitle: 'Senin için seçtiklerimiz', homeBadge: 'Kişiselleştirildi',
+      complement: 'Tamamlayıcı ürünler', signupTitle: (d) => `Hesap oluştur, ${d} indirim kazan`, signupText: 'Favorilerini kaydet, sana özel fırsatları kaçırma.',
+      email: 'E-posta adresin', signupCta: 'Hesap Oluştur', welcome: (c) => `Hoş geldin, ${c}! 🎉`,
+      emailSubject: (c) => `${c}, senin için seçtiklerimiz`, emailTitle: 'Beğeneceğini düşündüklerimiz', emailCta: 'Hemen Keşfet',
+      smsText: (b, c, k) => `${b}: ${c}, favorilerin seni bekliyor! ${k} koduyla indirim senin.`, pushTitle: (c) => `${c}, yeni gelenler tam senlik`,
+      pushText: 'Sana özel önerileri keşfet.', whatsappText: (c) => `Merhaba ${c} 👋 İlgini çeken ürünlerde yeni seçenekler var.`, now: 'şimdi', today: 'Bugün' },
+    en: { labels: { ad: 'Social ad', browse: 'Browses the site', home: 'Homepage gets personalized', signup: 'Creates an account', channels: 'Recognized on every channel' },
+      adText: 'New season is here. Discover 👇', adCta: 'Shop Now', sponsored: 'Sponsored', learning: 'Insider is learning their interests',
+      tags: ['Category interest', 'Brand affinity', 'Price range'], homeTitle: 'Picked for you', homeBadge: 'Personalized',
+      complement: 'Complete the look', signupTitle: (d) => `Create an account, get ${d} off`, signupText: 'Save your favourites and get offers made for you.',
+      email: 'Your email', signupCta: 'Create Account', welcome: (c) => `Welcome, ${c}! 🎉`,
+      emailSubject: (c) => `${c}, picked just for you`, emailTitle: "We think you'll love these", emailCta: 'Shop Now',
+      smsText: (b, c, k) => `${b}: ${c}, your favourites are waiting! Use ${k} for your discount.`, pushTitle: (c) => `${c}, new arrivals you'll love`,
+      pushText: 'Discover picks made for you.', whatsappText: (c) => `Hi ${c} 👋 New picks just landed for the things you love.`, now: 'now', today: 'Today' },
+  };
+  function journey(cfg) {
+    const S = setup(cfg, 'web'), J = S.L === TXT.tr ? JTXT.tr : JTXT.en;
+    const val = (k, ...a) => { const v = cfg[k]; if (v != null && v !== '') return v; const d = J[k]; return typeof d === 'function' ? d(...a) : d; };
+    const ALL = ['ad', 'browse', 'home', 'signup', 'channels'];
+    let steps = (Array.isArray(cfg.steps) && cfg.steps.length ? cfg.steps : ALL).map((x) => String(x).toLowerCase().trim()).filter((x) => ALL.includes(x));
+    if (!steps.length) steps = ALL;
+    const chans = (Array.isArray(cfg.channels) && cfg.channels.length ? cfg.channels : ['email', 'sms', 'push']).map((x) => String(x).toLowerCase().trim()).filter((x) => ['email', 'sms', 'push', 'whatsapp'].includes(x)).slice(0, 3);
+    const labels = Object.assign({}, J.labels, cfg.labels && typeof cfg.labels === 'object' && !Array.isArray(cfg.labels) ? cfg.labels : {});
+    if (Array.isArray(cfg.labels)) steps.forEach((s, i) => { if (cfg.labels[i]) labels[s] = cfg.labels[i]; });
+    const tags = (Array.isArray(cfg.tags) && cfg.tags.length ? cfg.tags : J.tags).slice(0, 4);
+    const browseUrl = cfg.browse || cfg.products || cfg.site;
+    const L = (dom, cls = '') => logo(dom, cls);
+    const scr = S.scr;
+    // captions
+    scr.append(h(`<div class="sc-jcap" id="sc-cap"></div>`));
+    steps.forEach((s, i) => scr.querySelector('#sc-cap').append(h(`<div class="sc-jchip" id="sc-c-${s}" data-uc-hidden><b>${i + 1}</b>${esc(labels[s])}</div>`)));
+    // browse page capture (category) on top of the home capture
+    if (steps.includes('browse')) scr.append(h(`<div class="uc-site sc-jbrowse" id="sc-browse" data-site="${esc(browseUrl)}" data-uc-hidden></div>`));
+    scr.append(h(`<div class="uc-dim" id="sc-dim" data-uc-hidden></div>`));
+    // 1. social ad on a phone
+    scr.append(h(`<div class="sc-phone" id="sc-ad" data-uc-hidden><div class="scr">
+      <div class="sc-ighead"><img data-uc-logo="instagram.com" alt="" class="sc-appic"><span>Instagram</span></div>
+      <div class="sc-igpost"><div class="sc-igtop"><div class="sc-av uc-wlogo">${L(S.domain)}</div><div><b>${esc(S.name)}</b><small>${esc(J.sponsored)}</small></div><span class="dots">•••</span></div>
+      <img class="sc-igimg" data-uc-product="0" alt=""><div class="sc-igcta" id="sc-adcta">${esc(val('adCta'))}<span>›</span></div>
+      <div class="sc-igact">♡ &nbsp;💬 &nbsp;↗</div><div class="sc-igcap"><b>${esc(S.name)}</b> ${bold(val('adText'))}</div></div></div></div>`));
+    // 2. learning panel
+    scr.append(h(`<div class="sc-learn" id="sc-learn" data-uc-hidden><div class="t">✦ ${esc(val('learning'))}</div>${tags.map((x, i) => `<div class="tag" id="sc-tag${i}" data-uc-hidden>${esc(x)}</div>`).join('')}</div>`));
+    // 3. personalized recommendations strip
+    scr.append(h(`<div class="sc-recs" id="sc-recs" data-uc-hidden><div class="hd"><b>${esc(val('homeTitle'))}</b><span class="badge">✦ ${esc(val('homeBadge'))}</span></div>
+      <div class="row">${[0, 1, 2, 3].map((i) => `<div class="card" id="sc-rc${i}"><img data-uc-product="${i}" alt=""><span data-uc-pname="${i}"></span>${i === 3 ? `<em>${esc(val('complement'))}</em>` : ''}</div>`).join('')}</div></div>`));
+    // 4. sign-up modal
+    scr.append(h(`<div class="uc-layer" id="sc-sign" data-uc-hidden><div class="ucp sc-signup"><div class="ucp-pad">${L(S.domain, 'sc-plogo')}
+      <h2>${esc(val('signupTitle', S.discount))}</h2><p>${esc(val('signupText'))}</p>
+      <div class="sc-field"><input id="sc-mail" placeholder="${esc(val('email'))}"></div><button class="cta" id="sc-sbtn">${esc(val('signupCta'))}</button>
+      <div class="sc-ok" id="sc-ok" data-uc-hidden>${esc(val('welcome', S.customer))}</div></div></div></div>`));
+    // 5. channels
+    const mail = `${S.customer.toLowerCase().replace(/[^a-z]/g, '') || 'name'}@mail.com`;
+    const panels = {
+      email: `<div class="sc-mailcard" id="sc-ch-email" data-uc-hidden><div class="bar"><span>✉</span><b>${esc(val('emailSubject', S.customer))}</b></div>
+        <div class="body"><div class="lg">${L(S.domain, 'sc-plogo')}</div><h3>${esc(val('emailTitle'))}</h3><div class="g">${[0, 1, 2].map((i) => `<img data-uc-product="${i}" alt="">`).join('')}</div>
+        <div class="btn">${esc(val('emailCta'))}</div></div></div>`,
+      sms: `<div class="sc-phone sm" id="sc-ch-sms" data-uc-hidden><div class="scr sc-smsscr"><div class="who"><div class="sc-av uc-wlogo">${L(S.domain)}</div><b>${esc(S.name)}</b></div>
+        <div class="day">${esc(J.today)}</div><div class="bub">${bold(val('smsText', S.name, S.customer, S.coupon))}</div></div></div>`,
+      push: `<div class="sc-phone sm" id="sc-ch-push" data-uc-hidden><div class="scr sc-lock"><div class="clock">9:41</div>
+        <div class="ucn-ios"><div class="ic light">${L(S.domain)}</div><div class="main"><div class="l1">${esc(S.name)}<span>${esc(J.now)}</span></div><div class="b"><b>${esc(val('pushTitle', S.customer))}</b> ${bold(val('pushText'))}</div></div><img class="thumb" data-uc-product="1" alt=""></div></div></div>`,
+      whatsapp: `<div class="sc-phone sm" id="sc-ch-whatsapp" data-uc-hidden><div class="scr sc-lock"><div class="clock">9:41</div>
+        <div class="ucn-ios"><div class="ic light"><img data-uc-logo="whatsapp.com" alt=""></div><div class="main"><div class="l1">${esc(S.name)}<span>${esc(J.now)}</span></div><div class="b">${bold(val('whatsappText', S.customer))}</div></div><img class="thumb" data-uc-product="2" alt=""></div></div></div>`,
+    };
+    const chWrap = h(`<div class="sc-chans" id="sc-chans" data-uc-hidden></div>`); chans.forEach((c) => chWrap.append(h(panels[c]))); scr.append(chWrap);
+
+    if (!cfg.format) document.documentElement.dataset.format = 'mp4';
+    const T = UC.timeline({ duration: 30, cursorStart: [900, 560] });
+    let t = 0.3, prev = null;
+    const cap = (s) => { if (prev) T.hide('#sc-c-' + prev, t, { dur: 0.2 }); T.show('#sc-c-' + s, t + 0.1, { anim: 'down', dur: 0.35 }); prev = s; };
+    steps.forEach((s) => {
+      cap(s);
+      if (s === 'ad') {
+        T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-ad', t + 0.2, { anim: 'up', dur: 0.5 });
+        t += 3.0; T.tap('#sc-adcta', t, { travel: 0.8 });
+        t += 0.4; T.hide('#sc-ad', t, { anim: 'fade', dur: 0.3 }).hide('#sc-dim', t, { dur: 0.3 }); t += 0.4;
+      } else if (s === 'browse') {
+        T.show('#sc-browse', t, { anim: 'fade', dur: 0.3 }).show('#sc-learn', t + 0.6, { anim: 'left', dur: 0.4 });
+        T.move([300, 360], t + 1.0, 0.7).move([560, 420], t + 2.0, 0.7).move([820, 380], t + 3.1, 0.7);
+        tags.forEach((_, i) => T.show('#sc-tag' + i, t + 1.2 + i * 0.8, { anim: 'pop', dur: 0.3 }));
+        t += Math.max(4.0, 1.6 + tags.length * 0.8);
+        T.hide('#sc-browse', t, { anim: 'fade', dur: 0.35 }).hide('#sc-learn', t, { anim: 'fade', dur: 0.3 }); t += 0.4;
+      } else if (s === 'home') {
+        T.show('#sc-recs', t + 0.2, { anim: 'up', dur: 0.5 });
+        T.move([470, 560], t + 1.8, 0.8).cls('#sc-rc1', 'hov', t + 1.8, { until: t + 2.8 }).move([980, 560], t + 3.0, 0.8).cls('#sc-rc3', 'hov', t + 3.0);
+        t += 4.2; T.hide('#sc-recs', t, { anim: 'fade', dur: 0.3 }); t += 0.3;
+      } else if (s === 'signup') {
+        T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-sign', t + 0.1, { anim: 'pop', dur: 0.45 });
+        t += 1.2; T.tap('#sc-mail', t, { travel: 0.6 }); T.type('#sc-mail', mail, t + 0.2, { cps: 20 });
+        t += 0.6 + mail.length / 20; T.tap('#sc-sbtn', t, { travel: 0.5 });
+        t += 0.25; T.hide('#sc-sbtn', t, { dur: 0.15 }).show('#sc-ok', t + 0.1, { anim: 'pop', dur: 0.35 });
+        t += 1.5; T.hide('#sc-sign', t, { anim: 'pop', dur: 0.3 }).hide('#sc-dim', t, { dur: 0.3 }); t += 0.3;
+      } else if (s === 'channels') {
+        T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-chans', t, { anim: 'none', dur: 0 });
+        chans.forEach((c, i) => T.show('#sc-ch-' + c, t + 0.3 + i * 0.8, { anim: 'up', dur: 0.45 }));
+        t += 0.6 + chans.length * 0.8 + 2.4;
+      }
+    });
+    T.duration = t + 0.6; window.__UC_DURATION = T.duration;
+    return T;
+  }
+
+  const SCENES = { whatsapp, popup, wheel, push, agent, journey };
   window.UC.scene = function (cfg) {
     cfg = cfg || {};
     const f = SCENES[String(cfg.type || '').toLowerCase()];
-    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, push or agent)');
+    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, push, agent or journey)');
     if (!cfg.site) throw new Error('UC.scene: "site" (the brand page URL) is required');
     return f(cfg);
   };
