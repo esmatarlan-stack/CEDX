@@ -963,29 +963,63 @@
     const S = setup(cfg, 'web'), J0 = S.L === TXT.tr ? JTXT.tr : JTXT.en, TR = S.L === TXT.tr;
     if (!window.UCJ) throw new Error('UC.scene architect needs journey.js');
     const val = (k, ...a) => { const v = cfg[k]; if (v != null && v !== '') return v; const d = J0[k]; return typeof d === 'function' ? d(...a) : d; };
-    const CH = { whatsapp: ['WhatsApp', 'whatsapp'], email: ['Email', 'email'], sms: ['SMS', 'sms'], push: ['App Push', 'apppush'], apppush: ['App Push', 'apppush'],
-      webpush: ['Web Push', 'webpush'], onsite: ['On-Site', 'onsite'], inapp: ['In-App', 'inapp'] };
+    // Insider Architect module catalogue (exact names, colours by kind, icons from journey.js)
+    const MOD = {
+      'on event': ['starter', 'event'], 'on website event': ['starter', 'website'], 'on website visit': ['starter', 'website'], 'user website action': ['starter', 'website'],
+      'on past behavior': ['starter', 'past'], 'on attribute change': ['starter', 'attribute'], 'on back in stock': ['starter', 'backinstock'],
+      'on price drop': ['starter', 'pricedrop'], 'on dynamic date': ['starter', 'date'],
+      'wait for some time': ['wait', 'clock'], 'wait for event': ['wait', 'interaction'], 'wait for attribute': ['wait', 'attribute'],
+      'wait until a time slot': ['wait', 'slot'], 'wait until dynamic time': ['wait', 'dyntime'],
+      'on-site': ['channel', 'onsite', 'onsite'], 'email': ['channel', 'email', 'email'], 'sms': ['channel', 'sms', 'sms'], 'whatsapp': ['channel', 'whatsapp', 'whatsapp'],
+      'app push': ['channel', 'apppush', 'push'], 'inapp': ['channel', 'inapp', 'onsite'], 'web push': ['channel', 'webpush', 'webpush'], 'call an api': ['channel', 'api', null],
+      'facebook': ['channel', 'facebook', 'ad'], 'instagram': ['channel', 'instagram', 'ad'], 'google ads': ['channel', 'googleads', 'ad'],
+      'youtube ads': ['channel', 'googleads', 'ad'], 'tiktok ads': ['channel', 'googleads', 'ad'],
+      'check conditions': ['check', 'conditions'], 'check attribute': ['check', 'conditions'], 'check reachability': ['check', 'reach'],
+      'check interaction': ['check', 'interaction'], 'check api response': ['check', 'api'],
+      'a/b split': ['ab', 'split'], 'next best channel': ['nbc', 'nbc'],
+      'update contact list': ['action', 'segment'], 'update user attribute': ['action', 'tag'], 'update static segment': ['action', 'segment'],
+    };
+    const ALIAS = { trigger: 'on event', start: 'on event', wait: 'wait for some time', check: 'check conditions', if: 'check conditions', split: 'a/b split',
+      onsite: 'on-site', 'on site': 'on-site', push: 'app push', apppush: 'app push', webpush: 'web push', 'in-app': 'inapp', 'in app': 'inapp', api: 'call an api',
+      ab: 'a/b split', 'a/b': 'a/b split', nbc: 'next best channel', reachability: 'check reachability', interaction: 'check interaction' };
+    const NICE = (k) => Object.keys(MOD).includes(k) ? k.replace(/(^|[\s\-/])(\w)/g, (m, a, c) => a + c.toUpperCase()).replace('Sms', 'SMS').replace('Inapp', 'InApp').replace('Whatsapp', 'WhatsApp').replace('Api', 'API').replace('A/B Split', 'A/B Split').replace('Youtube', 'Youtube').replace('Tiktok', 'TikTok') : k;
     let raw = Array.isArray(cfg.flow) ? cfg.flow : String(cfg.flow || '').split('|');
     raw = raw.map((x) => String(x).trim()).filter(Boolean);
-    if (!raw.length) raw = [TR ? 'trigger:Sepeti terk etti' : 'trigger:Cart abandoned', TR ? 'wait:1 saat' : 'wait:1 hour', 'whatsapp', TR ? 'check:Satın aldı mı?' : 'check:Purchased?', 'email', TR ? 'wait:1 gün' : 'wait:1 day', 'push'];
-    const yes = cfg.yes || (TR ? 'Evet' : 'Yes'), no = cfg.no || (TR ? 'Hayır' : 'No');
+    if (!raw.length) raw = ['On Event:' + (TR ? 'Sepeti terk etti' : 'Cart Abandoned'), 'Wait for Some Time:' + (TR ? '1 Saat' : '1 Hour'), 'WhatsApp', 'Check Conditions:' + (TR ? 'Satın aldı mı?' : 'Purchased?'), 'Email', 'Wait for Some Time:' + (TR ? '1 Gün' : '1 Day'), 'App Push'];
+    const EX = { conv: TR ? 'Dönüştü ✓' : 'Converted ✓', unreach: TR ? 'Ulaşılamadı' : 'Not Reachable', ctrl: TR ? 'Kontrol grubu' : 'Control group', out: TR ? 'Journey\'den çıkar' : 'Exits the journey' };
     let n = 0; const mk = (o) => Object.assign({ id: 'n' + (n++) }, o);
-    const items = raw.map((r) => {
-      const [k, ...rest] = r.split(':'), txt = rest.join(':').trim(), key = k.trim().toLowerCase();
-      if (key === 'trigger' || key === 'start') return mk({ kind: 'starter', icon: 'event', label: txt || (TR ? 'Tetikleyici' : 'Trigger'), sub: TR ? 'Başlangıç' : 'Starter', t: 'trigger' });
-      if (key === 'wait') return mk({ kind: 'wait', icon: 'clock', label: TR ? 'Bekle' : 'Wait for Some Time', sub: txt, t: 'wait' });
-      if (key === 'check' || key === 'if' || key === 'split') return mk({ kind: 'check', icon: 'conditions', label: TR ? 'Koşul Kontrolü' : 'Check Conditions', sub: txt, t: 'check' });
-      if (CH[key]) return mk({ kind: 'channel', icon: CH[key][1], label: CH[key][0], sub: txt || '', t: 'channel', ch: key === 'apppush' ? 'push' : key });
-      return mk({ kind: 'action', icon: 'business', label: txt || k, t: 'action' });
+    const exitNode = (label) => mk({ kind: 'action', icon: 'check', label, sub: EX.out, t: 'exit' });
+    const node = (tok) => {
+      const i = tok.indexOf(':'); let k = (i < 0 ? tok : tok.slice(0, i)).trim().toLowerCase().replace(/\s+/g, ' '); const sub = i < 0 ? '' : tok.slice(i + 1).trim();
+      k = ALIAS[k] || k; const m = MOD[k];
+      if (!m) return mk({ kind: 'action', icon: 'business', label: tok.slice(0, i < 0 ? undefined : i).trim(), sub, t: 'action' });
+      const o = mk({ kind: m[0], icon: m[1], label: NICE(k), sub, t: m[0], key: k, mockType: m[2] || null });
+      if (o.t === 'channel' && m[2] && m[2] !== 'ad') o.chip = 'On Send';
+      return o;
+    };
+    // build the tree; branching modules choose which branch the flow (and the customer) continues on
+    let root = null, tail = null, attach = null; const main = [];
+    const link = (it) => { if (!root) root = it; else attach(it); };
+    raw.forEach((tok) => {
+      const it = node(tok); link(it); main.push(it);
+      if (it.t === 'check') {
+        let cont, other;
+        if (it.key === 'check reachability') { cont = { label: 'Reachable', tone: 'ok' }; other = { label: 'Not Reachable', tone: 'bad', next: exitNode(EX.unreach) }; it.branches = [cont, other]; }
+        else if (it.key === 'check interaction') { other = { label: 'On Click', tone: 'ok', next: exitNode(EX.conv) }; cont = { label: 'Not Matching', tone: 'bad' }; it.branches = [other, cont]; }
+        else if (it.key === 'check api response') { cont = { label: 'Condition 1', tone: 'ok' }; other = { label: 'Not Matching', tone: 'bad', next: exitNode(EX.out) }; it.branches = [cont, other]; }
+        else { other = { label: 'Condition 1', tone: 'ok', next: exitNode(EX.conv) }; cont = { label: 'Not Matching', tone: 'bad' }; it.branches = [other, cont]; }
+        it.contLabel = cont.label; attach = (x) => { cont.next = x; };
+      } else if (it.t === 'ab') {
+        const A = { label: 'A 50%', tone: 'a' }, Bb = { label: 'B 50%', tone: 'b', next: exitNode(EX.ctrl) }; it.branches = [A, Bb]; it.contLabel = 'A 50%'; attach = (x) => { A.next = x; };
+      } else if (it.t === 'nbc') {
+        const chs = (it.sub || 'Email - SMS - WhatsApp').split(/\s*[-,/]\s*/).filter(Boolean).slice(0, 3);
+        const tones = ['a', 'b', 'c'], leaves = chs.map((c) => node(c));
+        it.branches = leaves.map((lf, j) => ({ label: 'Channel ' + 'ABC'[j], tone: tones[j], next: lf }));
+        it.contLabel = 'Channel A'; main.push(leaves[0]); const first = leaves[0]; attach = (x) => { first.next = x; };
+      } else attach = (x) => { it.next = x; };
+      tail = it;
     });
-    // link into a tree: a check splits into yes → exit, no → rest
-    const exitNode = () => mk({ kind: 'action', icon: 'check', label: TR ? 'Dönüştü ✓' : 'Converted ✓', sub: TR ? 'Journey\'den çıkar' : 'Exits the journey', t: 'exit' });
-    let root = null, tail = null; const main = [];
-    items.forEach((it) => {
-      if (!root) root = it; else if (tail.t === 'check') tail.branches = [{ label: yes, tone: 'ok', next: exitNode() }, { label: no, tone: 'bad', next: it }]; else tail.next = it;
-      tail = it; main.push(it);
-    });
-    if (tail.t === 'check') tail.branches = [{ label: yes, tone: 'ok', next: exitNode() }, { label: no, tone: 'bad', next: null }];
+    if (tail && tail.branches) tail.branches.forEach((b) => { if (b.next === undefined) b.next = null; });
 
     const scr = S.scr;
     scr.append(h(`<div class="sc-arch" id="sc-arch"><div class="sc-archhd"><span class="dot"></span><b>Architect</b><span class="nm">${esc(cfg.title || (TR ? 'Müşteri yolculuğu' : 'Customer journey'))}</span></div></div>`));
@@ -999,12 +1033,14 @@
       if (it.ch === 'sms') return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr sc-smsscr"><div class="who"><div class="sc-av uc-wlogo">${logo(S.domain)}</div><b>${esc(S.name)}</b></div><div class="day">${esc(J0.today)}</div><div class="bub">${bold(val('smsText', S.name, S.customer, S.coupon))}</div></div></div>`;
       if (it.ch === 'whatsapp') return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr sc-lock"><div class="clock">9:41</div><div class="ucn-ios"><div class="ic light"><img data-uc-logo="whatsapp.com" alt=""></div><div class="main"><div class="l1">${esc(S.name)}<span>${esc(J0.now)}</span></div><div class="b">${bold(val('whatsappText', S.customer))}</div></div><img class="thumb" data-uc-product="0" alt=""></div></div></div>`;
       if (it.ch === 'webpush') return `<div class="ucn-web sc-amock sc-awp" id="${id}" data-uc-hidden><div class="top"><span class="chrome"></span>Google Chrome · ${esc(S.domain)}</div><div class="row"><div class="ic light">${logo(S.domain)}</div><div><div class="t">${esc(val('pushTitle', S.customer))}</div><div class="b">${bold(val('pushText'))}</div></div></div><img class="hero" data-uc-product="1" alt=""></div>`;
+      if (it.ch === 'ad') { const plat = { facebook: 'facebook.com', instagram: 'instagram.com', 'google ads': 'google.com', 'youtube ads': 'youtube.com', 'tiktok ads': 'tiktok.com' }[it.key] || 'instagram.com';
+        return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr"><div class="sc-ighead"><img data-uc-logo="${plat}" alt="" class="sc-appic"><span>${esc(it.label)}</span></div><div class="sc-igpost"><div class="sc-igtop"><div class="sc-av uc-wlogo">${logo(S.domain)}</div><div><b>${esc(S.name)}</b><small>${esc(J0.sponsored)}</small></div></div><img class="sc-igimg" data-uc-product="0" alt=""><div class="sc-igcta">${esc(val('adCta'))}<span>›</span></div><div class="sc-igcap"><b>${esc(S.name)}</b> ${bold(val('adText'))}</div></div></div></div>`; }
       if (it.ch === 'onsite' || it.ch === 'inapp') return `<div class="ucp sc-amock sc-aon" id="${id}" data-uc-hidden><div class="ucp-pad">${logo(S.domain, 'sc-plogo')}<h2>${esc(cfg.onsiteTitle || val('signupTitle', S.discount))}</h2><div class="sc-code">${esc(S.coupon)}</div></div></div>`;
       return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr sc-lock"><div class="clock">9:41</div><div class="ucn-ios"><div class="ic light">${logo(S.domain)}</div><div class="main"><div class="l1">${esc(S.name)}<span>${esc(J0.now)}</span></div><div class="b"><b>${esc(val('pushTitle', S.customer))}</b> ${bold(val('pushText'))}</div></div><img class="thumb" data-uc-product="1" alt=""></div></div></div>`;
     };
     scr.append(h(`<div class="uc-dim sc-adim" id="sc-dim" data-uc-hidden></div>`));
-    const chans = main.filter((it) => it.t === 'channel');
-    chans.forEach((it, i) => { it.mock = 'sc-m' + i; scr.append(h(panel(it, i))); });
+    const chans = main.filter((it) => it.t === 'channel' && it.mockType);
+    chans.forEach((it, i) => { it.ch = it.mockType; it.mock = 'sc-m' + i; scr.append(h(panel(it, i))); });
     if (cfg.kpi) scr.append(h(`<div class="sc-kpi" id="sc-kpi" data-uc-hidden>🎯 ${esc(cfg.kpi)}</div>`));
 
     const T = UC.timeline({ duration: 60, cursorStart: [1180, 680] });
@@ -1015,16 +1051,16 @@
     UCJ.check(T, Jb, main[0].id, t + 0.3);
     let prevMock = null;
     main.slice(1).forEach((it) => {
-      t += it.t === 'channel' ? 1.2 : 1.0; walk.push([it.id, t]);
-      UCJ.active(T, Jb, it.id, t - 0.1, t + (it.t === 'channel' ? 2.6 : 0.8));
-      if (it.t === 'channel') {
+      t += it.mock ? 1.2 : 1.0; walk.push([it.id, t]);
+      UCJ.active(T, Jb, it.id, t - 0.1, t + (it.mock ? 2.6 : 0.8));
+      if (it.mock) {
         if (prevMock) T.hide('#' + prevMock, t - 0.2, { anim: 'fade', dur: 0.25 });
         const box = { x: 980, y: 380 };
         T.show('#' + it.mock, t, { anim: 'up', dur: 0.45 });
         UCJ.link(T, Jb, it.id, 'right', [box.x - 160, box.y], t + 0.1, { dur: 0.6 });
         prevMock = it.mock; t += 2.4;
       }
-      if (it.t === 'check') UCJ.pill(T, Jb, it.id, no + ' →', t + 0.3, { tone: 'bad', side: 'right', until: t + 1.2 });
+      if (it.contLabel) UCJ.pill(T, Jb, it.id, it.contLabel + ' →', t + 0.3, { tone: /Not|B 50/.test(it.contLabel) ? 'bad' : 'ok', side: 'right', until: t + 1.2 });
       UCJ.check(T, Jb, it.id, t + 0.4);
     });
     UCJ.walk(T, Jb, P, walk);
