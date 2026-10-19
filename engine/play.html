@@ -10,6 +10,7 @@
 <body>
 <div class="uc-screen"><p style="font: 15px system-ui; padding: 24px; color: #666">Loading the preview…</p></div>
 <script src="./uc.js"></script>
+<script src="./journey.js"></script>
 <script>
 /* Opens a scene from the link the Gem gives in chat, e.g.
  * play.html?type=whatsapp&surface=mobile&site=https://www.lcw.com/kadin-giyim-t-10&brand=LC+Waikiki&color=00529B&lang=tr&customer=Ayşe&coupon=LCW10&discount=%2510
@@ -19,7 +20,7 @@
   const q = new URLSearchParams(location.search + (location.hash.length > 1 ? '&' + location.hash.slice(1) : ''));
   let cfg = {};
   if (q.get('c')) { try { cfg = JSON.parse(q.get('c')); } catch (e) { throw new Error('The link is broken (c= is not valid JSON). Ask the Gem for the link again.'); } }
-  const LISTS = ['segments', 'quick', 'final', 'prices', 'labels', 'steps', 'channels', 'tags'];
+  const LISTS = ['segments', 'quick', 'final', 'prices', 'labels', 'steps', 'channels', 'tags', 'flow'];
   const BRAND = { brand: 'name', color: 'color', ink: 'ink', accent: 'accent', domain: 'domain' };
   q.forEach((v, k) => {
     if (k === 'c') return;

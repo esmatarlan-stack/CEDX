@@ -626,7 +626,7 @@
     try { domain = domain || new URL(site).hostname.replace(/^www\./, ''); } catch (e) {}
     const name = (cfg.brand && cfg.brand.name) || (domain.split('.')[0] || 'Brand').replace(/^./, (c) => c.toUpperCase());
     root.dataset.name = root.dataset.name || `${domain.split('.')[0]}-${cfg.type}-${surface}`;
-    root.dataset.format = cfg.format || (cfg.type === 'journey' ? 'mp4' : (root.dataset.format || 'gif'));
+    root.dataset.format = cfg.format || (cfg.type === 'journey' || cfg.type === 'architect' ? 'mp4' : (root.dataset.format || 'gif'));
     const color = (cfg.brand && cfg.brand.color) || '#111111', ink = (cfg.brand && cfg.brand.ink) || '#ffffff';
     root.style.setProperty('--brand', color); root.style.setProperty('--brand-ink', ink); root.style.setProperty('--accent', (cfg.brand && cfg.brand.accent) || color);
     root.style.setProperty('--chat', color); root.style.setProperty('--chat-ink', ink);
@@ -956,11 +956,89 @@
     return T;
   }
 
-  const SCENES = { whatsapp, popup, wheel, push, agent, journey };
+  // ---------------- Architect: the journey flow itself (web) ----------------
+  // flow = "trigger:Cart abandoned|wait:1 hour|whatsapp|check:Purchased?|email|wait:1 day|push"
+  // A "check:…" node splits: Yes → exit (converted), No → the rest of the flow continues.
+  function architect(cfg) {
+    const S = setup(cfg, 'web'), J0 = S.L === TXT.tr ? JTXT.tr : JTXT.en, TR = S.L === TXT.tr;
+    if (!window.UCJ) throw new Error('UC.scene architect needs journey.js');
+    const val = (k, ...a) => { const v = cfg[k]; if (v != null && v !== '') return v; const d = J0[k]; return typeof d === 'function' ? d(...a) : d; };
+    const CH = { whatsapp: ['WhatsApp', 'whatsapp'], email: ['Email', 'email'], sms: ['SMS', 'sms'], push: ['App Push', 'apppush'], apppush: ['App Push', 'apppush'],
+      webpush: ['Web Push', 'webpush'], onsite: ['On-Site', 'onsite'], inapp: ['In-App', 'inapp'] };
+    let raw = Array.isArray(cfg.flow) ? cfg.flow : String(cfg.flow || '').split('|');
+    raw = raw.map((x) => String(x).trim()).filter(Boolean);
+    if (!raw.length) raw = [TR ? 'trigger:Sepeti terk etti' : 'trigger:Cart abandoned', TR ? 'wait:1 saat' : 'wait:1 hour', 'whatsapp', TR ? 'check:Satın aldı mı?' : 'check:Purchased?', 'email', TR ? 'wait:1 gün' : 'wait:1 day', 'push'];
+    const yes = cfg.yes || (TR ? 'Evet' : 'Yes'), no = cfg.no || (TR ? 'Hayır' : 'No');
+    let n = 0; const mk = (o) => Object.assign({ id: 'n' + (n++) }, o);
+    const items = raw.map((r) => {
+      const [k, ...rest] = r.split(':'), txt = rest.join(':').trim(), key = k.trim().toLowerCase();
+      if (key === 'trigger' || key === 'start') return mk({ kind: 'starter', icon: 'event', label: txt || (TR ? 'Tetikleyici' : 'Trigger'), sub: TR ? 'Başlangıç' : 'Starter', t: 'trigger' });
+      if (key === 'wait') return mk({ kind: 'wait', icon: 'clock', label: TR ? 'Bekle' : 'Wait for Some Time', sub: txt, t: 'wait' });
+      if (key === 'check' || key === 'if' || key === 'split') return mk({ kind: 'check', icon: 'conditions', label: TR ? 'Koşul Kontrolü' : 'Check Conditions', sub: txt, t: 'check' });
+      if (CH[key]) return mk({ kind: 'channel', icon: CH[key][1], label: CH[key][0], sub: txt || '', t: 'channel', ch: key === 'apppush' ? 'push' : key });
+      return mk({ kind: 'action', icon: 'business', label: txt || k, t: 'action' });
+    });
+    // link into a tree: a check splits into yes → exit, no → rest
+    const exitNode = () => mk({ kind: 'action', icon: 'check', label: TR ? 'Dönüştü ✓' : 'Converted ✓', sub: TR ? 'Journey\'den çıkar' : 'Exits the journey', t: 'exit' });
+    let root = null, tail = null; const main = [];
+    items.forEach((it) => {
+      if (!root) root = it; else if (tail.t === 'check') tail.branches = [{ label: yes, tone: 'ok', next: exitNode() }, { label: no, tone: 'bad', next: it }]; else tail.next = it;
+      tail = it; main.push(it);
+    });
+    if (tail.t === 'check') tail.branches = [{ label: yes, tone: 'ok', next: exitNode() }, { label: no, tone: 'bad', next: null }];
+
+    const scr = S.scr;
+    scr.append(h(`<div class="sc-arch" id="sc-arch"><div class="sc-archhd"><span class="dot"></span><b>Architect</b><span class="nm">${esc(cfg.title || (TR ? 'Müşteri yolculuğu' : 'Customer journey'))}</span></div></div>`));
+    const host = scr.querySelector('#sc-arch');
+    const Jb = UCJ.build(host, root, { x: 24, y: 72, maxW: 590, maxH: 630 });
+    { const w = Jb.spec._w * Jb.scale; Jb.x = Math.max(24, Math.round((640 - w) / 2)); Jb.canvas.style.left = Jb.x + 'px'; }   // centre the flow in the panel
+    // channel mockups on the right, over the real site
+    const panel = (it, i) => {
+      const id = 'sc-m' + i;
+      if (it.ch === 'email') return `<div class="sc-mailcard sc-amock" id="${id}" data-uc-hidden><div class="bar"><span>✉</span><b>${esc(val('emailSubject', S.customer))}</b></div><div class="body"><div class="lg">${logo(S.domain, 'sc-plogo')}</div><h3>${esc(val('emailTitle'))}</h3><div class="g">${[0, 1, 2].map((k) => `<img data-uc-product="${k}" alt="">`).join('')}</div><div class="btn">${esc(val('emailCta'))}</div></div></div>`;
+      if (it.ch === 'sms') return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr sc-smsscr"><div class="who"><div class="sc-av uc-wlogo">${logo(S.domain)}</div><b>${esc(S.name)}</b></div><div class="day">${esc(J0.today)}</div><div class="bub">${bold(val('smsText', S.name, S.customer, S.coupon))}</div></div></div>`;
+      if (it.ch === 'whatsapp') return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr sc-lock"><div class="clock">9:41</div><div class="ucn-ios"><div class="ic light"><img data-uc-logo="whatsapp.com" alt=""></div><div class="main"><div class="l1">${esc(S.name)}<span>${esc(J0.now)}</span></div><div class="b">${bold(val('whatsappText', S.customer))}</div></div><img class="thumb" data-uc-product="0" alt=""></div></div></div>`;
+      if (it.ch === 'webpush') return `<div class="ucn-web sc-amock sc-awp" id="${id}" data-uc-hidden><div class="top"><span class="chrome"></span>Google Chrome · ${esc(S.domain)}</div><div class="row"><div class="ic light">${logo(S.domain)}</div><div><div class="t">${esc(val('pushTitle', S.customer))}</div><div class="b">${bold(val('pushText'))}</div></div></div><img class="hero" data-uc-product="1" alt=""></div>`;
+      if (it.ch === 'onsite' || it.ch === 'inapp') return `<div class="ucp sc-amock sc-aon" id="${id}" data-uc-hidden><div class="ucp-pad">${logo(S.domain, 'sc-plogo')}<h2>${esc(cfg.onsiteTitle || val('signupTitle', S.discount))}</h2><div class="sc-code">${esc(S.coupon)}</div></div></div>`;
+      return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr sc-lock"><div class="clock">9:41</div><div class="ucn-ios"><div class="ic light">${logo(S.domain)}</div><div class="main"><div class="l1">${esc(S.name)}<span>${esc(J0.now)}</span></div><div class="b"><b>${esc(val('pushTitle', S.customer))}</b> ${bold(val('pushText'))}</div></div><img class="thumb" data-uc-product="1" alt=""></div></div></div>`;
+    };
+    scr.append(h(`<div class="uc-dim sc-adim" id="sc-dim" data-uc-hidden></div>`));
+    const chans = main.filter((it) => it.t === 'channel');
+    chans.forEach((it, i) => { it.mock = 'sc-m' + i; scr.append(h(panel(it, i))); });
+    if (cfg.kpi) scr.append(h(`<div class="sc-kpi" id="sc-kpi" data-uc-hidden>🎯 ${esc(cfg.kpi)}</div>`));
+
+    const T = UC.timeline({ duration: 60, cursorStart: [1180, 680] });
+    if (!cfg.format) document.documentElement.dataset.format = 'mp4';
+    let t = UCJ.animateBuild(T, Jb, 0.5, 0.32) + 0.5;
+    const P = UCJ.persona(Jb, { name: S.customer, initial: S.customer[0], color: getComputedStyle(document.documentElement).getPropertyValue('--brand').trim() || '#e8462b' });
+    const walk = [[main[0].id, t]]; T.show('#sc-dim', t, { anim: 'fade', dur: 0.4 });
+    UCJ.check(T, Jb, main[0].id, t + 0.3);
+    let prevMock = null;
+    main.slice(1).forEach((it) => {
+      t += it.t === 'channel' ? 1.2 : 1.0; walk.push([it.id, t]);
+      UCJ.active(T, Jb, it.id, t - 0.1, t + (it.t === 'channel' ? 2.6 : 0.8));
+      if (it.t === 'channel') {
+        if (prevMock) T.hide('#' + prevMock, t - 0.2, { anim: 'fade', dur: 0.25 });
+        const box = { x: 980, y: 380 };
+        T.show('#' + it.mock, t, { anim: 'up', dur: 0.45 });
+        UCJ.link(T, Jb, it.id, 'right', [box.x - 160, box.y], t + 0.1, { dur: 0.6 });
+        prevMock = it.mock; t += 2.4;
+      }
+      if (it.t === 'check') UCJ.pill(T, Jb, it.id, no + ' →', t + 0.3, { tone: 'bad', side: 'right', until: t + 1.2 });
+      UCJ.check(T, Jb, it.id, t + 0.4);
+    });
+    UCJ.walk(T, Jb, P, walk);
+    t += 0.8;
+    if (cfg.kpi) T.show('#sc-kpi', t, { anim: 'pop', dur: 0.4 });
+    T.duration = t + 2.2; window.__UC_DURATION = T.duration;
+    return T;
+  }
+
+  const SCENES = { whatsapp, popup, wheel, push, agent, journey, architect };
   window.UC.scene = function (cfg) {
     cfg = cfg || {};
     const f = SCENES[String(cfg.type || '').toLowerCase()];
-    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, push, agent or journey)');
+    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, push, agent, journey or architect)');
     if (!cfg.site) throw new Error('UC.scene: "site" (the brand page URL) is required');
     return f(cfg);
   };
