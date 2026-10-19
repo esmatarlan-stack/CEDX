@@ -849,6 +849,23 @@
     return T;
   }
 
+  // Email shown as it really arrives: a phone mail app with the opened message (brand header, hero product,
+  // headline, CTA, product picks, footer).
+  function emailPhone(S, val, J0, id, extra = '') {
+    return `<div class="sc-phone sm ${extra}" id="${id}" data-uc-hidden><div class="scr sc-mail">
+      <div class="mbar"><span>‹ Inbox</span><span>⋯</span></div>
+      <div class="msub">${esc(val('emailSubject', S.customer))}</div>
+      <div class="mfrom"><div class="sc-av uc-wlogo">${logo(S.domain)}</div><div><b>${esc(S.name)}</b><small>to me · 09:41</small></div></div>
+      <div class="mbody">
+        <div class="mhead">${logo(S.domain, 'sc-plogo')}</div>
+        <img class="mhero" data-uc-product="0" alt="">
+        <h3>${esc(val('emailTitle'))}</h3>
+        <p>${bold(val('emailText', S.customer, S.coupon, S.discount))}</p>
+        <div class="mbtn">${esc(val('emailCta'))}</div>
+        <div class="mgrid">${[1, 2].map((k) => `<div><img data-uc-product="${k}" alt=""><span data-uc-pname="${k}"></span></div>`).join('')}</div>
+        <div class="mfoot">${esc(S.domain)} · Unsubscribe</div>
+      </div></div></div>`;
+  }
   // ---------------- Journey: multi-step personalization story (web) ----------------
   // ad (social ad on a phone) → browse (category page + "learning" panel) → home (personalized recommendations)
   // → signup (account creation) → channels (email / SMS / push / WhatsApp side by side). Steps are optional.
@@ -858,7 +875,7 @@
       tags: ['Kategori ilgisi', 'Marka tercihi', 'Fiyat aralığı'], homeTitle: 'Senin için seçtiklerimiz', homeBadge: 'Kişiselleştirildi',
       complement: 'Tamamlayıcı ürünler', signupTitle: (d) => `Hesap oluştur, ${d} indirim kazan`, signupText: 'Favorilerini kaydet, sana özel fırsatları kaçırma.',
       email: 'E-posta adresin', signupCta: 'Hesap Oluştur', welcome: (c) => `Hoş geldin, ${c}! 🎉`,
-      emailSubject: (c) => `${c}, senin için seçtiklerimiz`, emailTitle: 'Beğeneceğini düşündüklerimiz', emailCta: 'Hemen Keşfet',
+      emailSubject: (c) => `${c}, senin için seçtiklerimiz`, emailTitle: 'Beğeneceğini düşündüklerimiz', emailCta: 'Hemen Keşfet', emailText: (c, k, d) => `Merhaba ${c}, sepetindeki ürünler seni bekliyor. *${k}* koduyla ${d} indirim senin.`,
       smsText: (b, c, k) => `${b}: ${c}, favorilerin seni bekliyor! ${k} koduyla indirim senin.`, pushTitle: (c) => `${c}, yeni gelenler tam senlik`,
       pushText: 'Sana özel önerileri keşfet.', whatsappText: (c) => `Merhaba ${c} 👋 İlgini çeken ürünlerde yeni seçenekler var.`, now: 'şimdi', today: 'Bugün' },
     en: { labels: { ad: 'Social ad', browse: 'Browses the site', home: 'Homepage gets personalized', signup: 'Creates an account', channels: 'Recognized on every channel' },
@@ -866,7 +883,7 @@
       tags: ['Category interest', 'Brand affinity', 'Price range'], homeTitle: 'Picked for you', homeBadge: 'Personalized',
       complement: 'Complete the look', signupTitle: (d) => `Create an account, get ${d} off`, signupText: 'Save your favourites and get offers made for you.',
       email: 'Your email', signupCta: 'Create Account', welcome: (c) => `Welcome, ${c}! 🎉`,
-      emailSubject: (c) => `${c}, picked just for you`, emailTitle: "We think you'll love these", emailCta: 'Shop Now',
+      emailSubject: (c) => `${c}, picked just for you`, emailTitle: "We think you'll love these", emailCta: 'Shop Now', emailText: (c, k, d) => `Hi ${c}, your picks are still waiting. Use *${k}* for ${d} off.`,
       smsText: (b, c, k) => `${b}: ${c}, your favourites are waiting! Use ${k} for your discount.`, pushTitle: (c) => `${c}, new arrivals you'll love`,
       pushText: 'Discover picks made for you.', whatsappText: (c) => `Hi ${c} 👋 New picks just landed for the things you love.`, now: 'now', today: 'Today' },
   };
@@ -908,9 +925,7 @@
     // 5. channels
     const mail = `${S.customer.toLowerCase().replace(/[^a-z]/g, '') || 'name'}@mail.com`;
     const panels = {
-      email: `<div class="sc-mailcard" id="sc-ch-email" data-uc-hidden><div class="bar"><span>✉</span><b>${esc(val('emailSubject', S.customer))}</b></div>
-        <div class="body"><div class="lg">${L(S.domain, 'sc-plogo')}</div><h3>${esc(val('emailTitle'))}</h3><div class="g">${[0, 1, 2].map((i) => `<img data-uc-product="${i}" alt="">`).join('')}</div>
-        <div class="btn">${esc(val('emailCta'))}</div></div></div>`,
+      email: emailPhone(S, val, J, 'sc-ch-email'),
       sms: `<div class="sc-phone sm" id="sc-ch-sms" data-uc-hidden><div class="scr sc-smsscr"><div class="who"><div class="sc-av uc-wlogo">${L(S.domain)}</div><b>${esc(S.name)}</b></div>
         <div class="day">${esc(J.today)}</div><div class="bub">${bold(val('smsText', S.name, S.customer, S.coupon))}</div></div></div>`,
       push: `<div class="sc-phone sm" id="sc-ch-push" data-uc-hidden><div class="scr sc-lock"><div class="clock">9:41</div>
@@ -1029,7 +1044,7 @@
     // channel mockups on the right, over the real site
     const panel = (it, i) => {
       const id = 'sc-m' + i;
-      if (it.ch === 'email') return `<div class="sc-mailcard sc-amock" id="${id}" data-uc-hidden><div class="bar"><span>✉</span><b>${esc(val('emailSubject', S.customer))}</b></div><div class="body"><div class="lg">${logo(S.domain, 'sc-plogo')}</div><h3>${esc(val('emailTitle'))}</h3><div class="g">${[0, 1, 2].map((k) => `<img data-uc-product="${k}" alt="">`).join('')}</div><div class="btn">${esc(val('emailCta'))}</div></div></div>`;
+      if (it.ch === 'email') return emailPhone(S, val, J0, id, 'sc-amock');
       if (it.ch === 'sms') return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr sc-smsscr"><div class="who"><div class="sc-av uc-wlogo">${logo(S.domain)}</div><b>${esc(S.name)}</b></div><div class="day">${esc(J0.today)}</div><div class="bub">${bold(val('smsText', S.name, S.customer, S.coupon))}</div></div></div>`;
       if (it.ch === 'whatsapp') return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr sc-lock"><div class="clock">9:41</div><div class="ucn-ios"><div class="ic light"><img data-uc-logo="whatsapp.com" alt=""></div><div class="main"><div class="l1">${esc(S.name)}<span>${esc(J0.now)}</span></div><div class="b">${bold(val('whatsappText', S.customer))}</div></div><img class="thumb" data-uc-product="0" alt=""></div></div></div>`;
       if (it.ch === 'webpush') return `<div class="ucn-web sc-amock sc-awp" id="${id}" data-uc-hidden><div class="top"><span class="chrome"></span>Google Chrome · ${esc(S.domain)}</div><div class="row"><div class="ic light">${logo(S.domain)}</div><div><div class="t">${esc(val('pushTitle', S.customer))}</div><div class="b">${bold(val('pushText'))}</div></div></div><img class="hero" data-uc-product="1" alt=""></div>`;
@@ -1045,7 +1060,7 @@
 
     const T = UC.timeline({ duration: 60, cursorStart: [1180, 680] });
     if (!cfg.format) document.documentElement.dataset.format = 'mp4';
-    let t = UCJ.animateBuild(T, Jb, 0.5, 0.32) + 0.5;
+    let t = UCJ.animateBuild(T, Jb, 0, 0.2) + 0.4;
     const P = UCJ.persona(Jb, { name: S.customer, initial: S.customer[0], color: getComputedStyle(document.documentElement).getPropertyValue('--brand').trim() || '#e8462b' });
     const walk = [[main[0].id, t]]; T.show('#sc-dim', t, { anim: 'fade', dur: 0.4 });
     UCJ.check(T, Jb, main[0].id, t + 0.3);
