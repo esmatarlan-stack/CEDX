@@ -1085,11 +1085,87 @@
     return T;
   }
 
-  const SCENES = { whatsapp, popup, wheel, push, agent, journey, architect };
+  // ---------------- Smart Recommender (web or mobile) ----------------
+  // widget = alsolike (default) | complementary | viewed | bundle | search
+  // The page scrolls down to the recommendation strip, which then works: swipe, add to cart, tick a bundle, search.
+  const RTXT = {
+    tr: { alsolike: 'Bunları da beğenebilirsin', complementary: 'Kombini tamamla', viewed: 'Bunu görüntüleyenler bunlara da baktı', bundle: 'Birlikte sıkça alınanlar',
+      search: 'Senin için sıralanan sonuçlar', pill: 'Sana özel', add: 'Sepete Ekle', added: '✓ Eklendi', bundleCta: (n) => `${n} ürünü birlikte sepete ekle`,
+      bundleSave: (d) => `Birlikte alana ${d} indirim`, total: (n) => `${n} ürün için toplam`, query: 'spor ayakkabı', searchPh: 'Ürün, kategori veya marka ara',
+      results: 'Sana özel sıralandı', toast: 'Sepetine eklendi' },
+    en: { alsolike: 'You may also like', complementary: 'Complete the look', viewed: 'Customers who viewed this also viewed', bundle: 'Frequently bought together',
+      search: 'Results ranked for you', pill: 'Picked for you', add: 'Add to cart', added: '✓ Added', bundleCta: (n) => `Add all ${n} to cart`,
+      bundleSave: (d) => `${d} off when bought together`, total: (n) => `Total for ${n} items`, query: 'running shoes', searchPh: 'Search products, categories, brands',
+      results: 'Personalized ranking', toast: 'Added to your cart' },
+  };
+  const parsePrice = (p) => { const m = String(p).replace(/[^\d.,]/g, ''); if (!m) return NaN; const n = /,\d{1,2}$/.test(m) ? m.replace(/\./g, '').replace(',', '.') : m.replace(/,/g, ''); return parseFloat(n); };
+  function recommender(cfg) {
+    const S = setup(cfg), R = S.L === TXT.tr ? RTXT.tr : RTXT.en, M = S.mobile;
+    const val = (k, ...a) => { const v = cfg[k]; if (v != null && v !== '') return v; const d = R[k]; return typeof d === 'function' ? d(...a) : d; };
+    const w = String(cfg.widget || 'alsolike').toLowerCase();
+    const kind = /bundle|together|fbt/.test(w) ? 'bundle' : /search/.test(w) ? 'search' : /compl/.test(w) ? 'complementary' : /view/.test(w) ? 'viewed' : 'alsolike';
+    const prices = Array.isArray(cfg.prices) ? cfg.prices : [];
+    const card = (i, btn = true) => `<div class="sc-rcard" id="sc-r${i}"><div class="im"><img data-uc-product="${i}" alt=""></div><div class="nm" data-uc-pname="${i}"></div>${prices[i] ? `<div class="pr">${esc(prices[i])}</div>` : ''}${btn ? `<button id="sc-ra${i}">${esc(val('add'))}</button>` : ''}</div>`;
+    const site = S.scr.querySelector('.uc-site');
+    let body = '';
+    if (kind === 'bundle') {
+      const items = [0, 1, 2].map((i) => `<div class="sc-bitem" id="sc-b${i}"><div class="im"><img data-uc-product="${i}" alt=""><span class="ck" id="sc-ck${i}" data-uc-hidden>✓</span></div><div class="nm" data-uc-pname="${i}"></div>${prices[i] ? `<div class="pr">${esc(prices[i])}</div>` : ''}</div>`);
+      const nums = prices.slice(0, 3).map(parsePrice); const sum = nums.length === 3 && nums.every((x) => !isNaN(x)) ? nums.reduce((a, b) => a + b, 0) : null;
+      const cur = prices[0] ? String(prices[0]).replace(/[\d.,\s]/g, '').trim() : '';
+      const fmt = (x) => { const tr = /,\d{1,2}\b/.test(String(prices[0])); const s = x.toFixed(2); const [i, d] = s.split('.'); const g = i.replace(/\B(?=(\d{3})+(?!\d))/g, tr ? '.' : ','); return (tr ? g + ',' + d : g + '.' + d); };
+      const total = sum != null ? (String(prices[0]).trim().match(/^[^\d]/) ? cur + fmt(sum) : fmt(sum) + ' ' + cur) : null;
+      body = `<div class="sc-bundle">${items.join('<div class="plus">+</div>')}<div class="sc-bsum"><div class="lb">${esc(val('total', 3))}</div>${total ? `<div class="tot">${esc(total)}</div>` : ''}<div class="save">${esc(val('bundleSave', S.discount))}</div><button id="sc-badd">${esc(val('bundleCta', 3))}</button></div></div>`;
+    } else if (kind === 'search') {
+      body = `<div class="sc-sgrid">${[0, 1, 2, 3].map((i) => card(i, false)).join('')}</div>`;
+    } else {
+      body = `<div class="sc-rtrack-wrap"><div class="sc-rtrack" id="sc-track">${[0, 1, 2, 3, 4, 5].map((i) => card(i)).join('')}</div></div>`;
+    }
+    const title = cfg.title || val(kind);
+    if (kind === 'search') {
+      S.scr.append(h(`<div class="sc-sbar" id="sc-sbar"><span>⌕</span><input id="sc-q" placeholder="${esc(val('searchPh'))}"></div>`));
+      S.scr.append(h(`<div class="sc-spanel" id="sc-sp" data-uc-hidden><div class="hd"><b>${esc(title)}</b><span class="pill">✦ ${esc(val('results'))}</span></div>${body}</div>`));
+    } else {
+      S.scr.append(h(`<div class="sc-rec ${M ? 'm' : ''}" id="sc-rec"><div class="hd"><b>${esc(title)}</b><span class="pill">✦ ${esc(val('pill'))}</span></div>${body}</div>`));
+    }
+    S.scr.append(h(`<div class="ucb-toast sc-toast" id="sc-toast" data-uc-hidden><img data-uc-product="${kind === 'bundle' ? 0 : 2}" alt=""><div><b>${esc(val('toast'))}</b></div></div>`));
+    if (site) site.id = 'sc-site';
+
+    const T = UC.timeline({ duration: 20, cursorStart: M ? null : [980, 300], cursor: M ? 'tap' : undefined });
+    const H = M ? 440 : 360, hh = M ? 844 : 720;
+    let t = 0.8;
+    if (kind === 'search') {
+      t += 0.2; T.tap('#sc-q', t, { travel: 0.6 }); const q = val('query'); T.type('#sc-q', q, t + 0.2, { cps: 14 });
+      t += 0.4 + q.length / 14; T.show('#sc-sp', t, { anim: 'up', dur: 0.4 });
+      [0, 1, 2, 3].forEach((i) => T.show('#sc-r' + i, t + 0.2 + i * 0.15, { anim: 'up', dur: 0.3 }));
+      t += 2.2; T.tap('#sc-r0', t, { travel: 0.7 });
+      t += 0.8;
+    } else {
+      // scroll the page so the recommendation strip comes into view
+      T.tween('#sc-site', 'transform', 0, H, t, 1.0, { fmt: (v) => `translateY(${-v}px)` });
+      T.tween('#sc-rec', 'transform', 0, H, t, 1.0, { fmt: (v) => `translateY(${-v}px)` });
+      t += 1.2;
+      if (kind === 'bundle') {
+        [0, 1, 2].forEach((i) => T.show('#sc-ck' + i, t + 0.5 + i * 0.5, { anim: 'pop', dur: 0.3 }));
+        T.tap('#sc-b1 .im', t + 1.0, { travel: 0.7, press: false }).tap('#sc-b2 .im', t + 1.5, { travel: 0.4, press: false });
+        t += 3.0; T.tap('#sc-badd', t, { travel: 0.7 }).text('#sc-badd', esc(val('added')), t + 0.15).cls('#sc-badd', 'ok', t + 0.15);
+      } else {
+        T.move(M ? [200, hh - H + 150] : [520, hh - H + 170], t + 0.8, 0.7).cls('#sc-r1', 'hov', t + 0.8, { until: t + 1.6 });
+        const step = M ? 160 : 226;
+        t += 1.8; T.scrollX('#sc-track', step * 2, t, 0.8);
+        if (M) T.taps.push({ target: [300, hh - H + 150], at: t + 0.1 });
+        t += 1.4; T.tap('#sc-ra3', t, { travel: 0.7 }).text('#sc-ra3', esc(val('added')), t + 0.15).cls('#sc-ra3', 'ok', t + 0.15);
+      }
+      t += 0.5; T.show('#sc-toast', t, { anim: 'up', dur: 0.35 });
+    }
+    T.duration = t + 2.0; window.__UC_DURATION = T.duration;
+    return T;
+  }
+
+  const SCENES = { whatsapp, popup, wheel, push, agent, journey, architect, recommender };
   window.UC.scene = function (cfg) {
     cfg = cfg || {};
     const f = SCENES[String(cfg.type || '').toLowerCase()];
-    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, push, agent, journey or architect)');
+    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, push, agent, journey, architect or recommender)');
     if (!cfg.site) throw new Error('UC.scene: "site" (the brand page URL) is required');
     return f(cfg);
   };
