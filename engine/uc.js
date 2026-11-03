@@ -377,30 +377,51 @@
   const productLists = new Map();
   function productsOf(url) {
     if (productLists.has(url)) return productLists.get(url);
-    const sel = encodeURIComponent('img[src^="http"][alt]:not([alt=""])');
-    const p = (async () => {
-      const d = await mlJSON(`url=${encodeURIComponent(url)}&meta=false&data.src.selectorAll=${sel}&data.src.attr=src&data.alt.selectorAll=${sel}&data.alt.attr=alt`);
-      const src = d.src || [], alt = d.alt || [], seen = new Set(), cands = [];
-      const aligned = src.length === alt.length;   // if the service dropped values, names would be shifted: use photos only
-      const BAD = /\.svg|logo|icon|sprite|payment|visa|master|etbis|qr|ssl|secure|trust|badge|flag|avatar|placeholder|loading|blank|pixel|app-?store|google-?play|footer|[_-](size)?\d{1,2}x\d{1,2}(?=[_.\-/?]|$)|[?&](w|width)=\d{1,2}(?!\d)/i;
-      src.forEach((s, i) => {
-        const name = aligned ? String(alt[i] || '').replace(/\s+/g, ' ').trim() : '';
-        if (!s || BAD.test(s) || seen.has(s) || (aligned && (!name || /sepete ekle|add to (cart|bag)|^logo|club|cart|basket|sepet|etbis|kayıtlı|qr|güvenli|secure|ssl|app ?store|google play|apple|visa|mastercard/i.test(name)))) return;
-        seen.add(s); cands.push({ src: s, name });
-      });
-      const checked = await Promise.all(cands.slice(0, 36).map((c) => new Promise((res) => {
-        const im = new Image(); im.onload = () => { const r = im.naturalHeight / im.naturalWidth; res(im.naturalWidth >= 200 && r >= 0.55 && r <= 1.9 ? c : null); };
-        im.onerror = () => res(null); im.src = c.src;
-      })));
-      const names = new Set();
-      let ok = checked.filter((c) => c && (!c.name || (!names.has(c.name) && names.add(c.name))));
-      // Product photos on a page share one image folder (e.g. cdn.brand.com/products/…). Keep the biggest
-      // such group so footer badges, QR codes and campaign banners from other folders drop out.
+    const enc = encodeURIComponent, sel = enc('img[src^="http"][alt]:not([alt=""])');
+    const BAD = /\.svg|logo|icon|sprite|payment|visa|master|etbis|qr|ssl|secure|trust|badge|flag|avatar|placeholder|loading|blank|pixel|app-?store|google-?play|footer|[_-](size)?\d{1,2}x\d{1,2}(?=[_.\-/?]|$)|[?&](w|width)=\d{1,2}(?!\d)/i;
+    const BADNAME = /sepete ekle|add to (cart|bag)|^logo|club|cart|basket|sepet|etbis|kayıtlı|qr|güvenli|secure|ssl|app ?store|google play|apple|visa|mastercard/i;
+    const abs = (u) => { try { return new URL(String(u).trim(), url).href; } catch (e) { return ''; } };
+    const measure = (list, rMin, rMax, minW) => Promise.all(list.slice(0, 40).map((c) => new Promise((res) => {
+      const im = new Image(); im.onload = () => { const r = im.naturalHeight / im.naturalWidth; res(im.naturalWidth >= minW && r >= rMin && r <= rMax ? c : null); };
+      im.onerror = () => res(null); im.src = c.src;
+    })));
+    // Photos of the same kind (products, destinations…) share one image folder: keep the biggest group.
+    const folder = (ok) => {
       const key = (u) => { try { const x = new URL(u); return x.host + '/' + x.pathname.split('/').filter(Boolean).slice(0, 1).join('/'); } catch (e) { return u; } };
       const groups = {}; ok.forEach((c) => { (groups[key(c.src)] = groups[key(c.src)] || []).push(c); });
-      const top = Object.values(groups).sort((a, b) => b.length - a.length)[0];
-      if (top && top.length >= 3) ok = top;
-      return ok;
+      const top = Object.values(groups).sort((x, y) => y.length - x.length)[0];
+      return top && top.length >= 3 ? top : ok;
+    };
+    const p = (async () => {
+      // Render the page in a real browser (prerender), scroll it so lazy images load, and tag every visible photo
+      // (current <img> source or CSS background) so it can be read back, even on sites built with JS.
+      const SCAN = "(()=>{window.scrollTo(0,document.body.scrollHeight/2);setTimeout(()=>window.scrollTo(0,0),400);document.querySelectorAll('img').forEach(i=>{const u=i.currentSrc||i.src||i.getAttribute('data-src')||i.getAttribute('data-lazy-src');if(u&&!/^data:/.test(u))i.setAttribute('data-ucimg',u)});document.querySelectorAll('div,a,section,li,span,figure,picture').forEach(e=>{const b=getComputedStyle(e).backgroundImage;const m=b&&b.match(/url\\([\"']?([^\"')]+)/);if(m&&e.getBoundingClientRect().width>140&&!/^data:/.test(m[1]))e.setAttribute('data-ucimg',m[1])})})()";
+      const d = await mlJSON(`url=${enc(url)}&meta=true&prerender=true&waitForTimeout=2500&scripts=${enc(SCAN)}&data.src.selectorAll=${sel}&data.src.attr=src&data.alt.selectorAll=${sel}&data.alt.attr=alt`
+        + `&data.tagged.selectorAll=${enc('[data-ucimg]')}&data.tagged.attr=data-ucimg`
+        + `&data.any.selectorAll=img&data.any.attr=src&data.lazy.selectorAll=${enc('img[data-src]')}&data.lazy.attr=data-src`
+        + `&data.srcset.selectorAll=${enc('img[srcset],source[srcset]')}&data.srcset.attr=srcset&data.bg.selectorAll=${enc('[style*="background-image"]')}&data.bg.attr=style`);
+      // pass 1: product images with alt text (names)
+      const src = d.src || [], alt = d.alt || [], seen = new Set(), cands = [];
+      const aligned = src.length === alt.length;   // if the service dropped values, names would be shifted: use photos only
+      src.forEach((s0, i) => {
+        const s = abs(s0), name = aligned ? String(alt[i] || '').replace(/\s+/g, ' ').trim() : '';
+        if (!s || BAD.test(s) || seen.has(s) || (aligned && (!name || BADNAME.test(name)))) return;
+        seen.add(s); cands.push({ src: s, name });
+      });
+      const names = new Set();
+      let ok = (await measure(cands, 0.55, 1.9, 200)).filter((c) => c && (!c.name || (!names.has(c.name) && names.add(c.name))));
+      ok = folder(ok);
+      if (ok.length >= 3) return ok;
+      // pass 2: sites whose cards have no alt, lazy images, srcsets or CSS backgrounds (travel, banks, telcos…):
+      // any large photo on the page, landscape allowed, plus the page's share image.
+      const pool = [...(d.tagged || []), ...(d.any || []), ...(d.lazy || []),
+        ...(d.srcset || []).map((x) => String(x).split(',').map((p) => p.trim().split(/\s+/)[0]).pop()),
+        ...(d.bg || []).map((x) => (String(x).match(/url\(["']?([^"')]+)/) || [])[1]),
+        d.image && d.image.url].filter(Boolean).map(abs);
+      const more = [];
+      pool.forEach((s) => { if (!s || /^data:/.test(s) || BAD.test(s) || seen.has(s)) return; seen.add(s); more.push({ src: s, name: '' }); });
+      const extra = folder((await measure(more, 0.4, 2.2, 260)).filter(Boolean));
+      return [...ok, ...extra];
     })();
     productLists.set(url, p); return p;
   }
@@ -420,7 +441,7 @@
       pimgs.forEach((img) => { const from = (img.closest('[data-uc-products]') || {}).dataset?.ucProducts || (site && site.dataset.site); if (from) { const u = absUrl(from); if (!groups.has(u)) groups.set(u, []); groups.get(u).push(img); } });
       let missing = 0;
       for (const [u, list] of groups) {
-        let prods = []; try { prods = await productsOf(u); } catch (e) {}
+        let prods = []; if (window.UC_IMAGES && window.UC_IMAGES.length) prods = window.UC_IMAGES.map((src) => ({ src, name: '' })); else { try { prods = await productsOf(u); } catch (e) {} }
         await Promise.all(list.map(async (img) => {
           const p = prods[+img.dataset.ucProduct || 0]; if (!p) { missing++; img.classList.add('uc-noimg'); return; }
           try { await loadImg(img, p.src); } catch (e) { missing++; img.classList.add('uc-noimg'); }
@@ -616,7 +637,12 @@
     },
   };
 
+  // Public image links the user gives (Google Drive share links are turned into direct image links)
+  const imgUrl = (u) => { u = String(u || '').trim(); const m = u.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([\w-]+)/); return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w1600` : u; };
   function setup(cfg, forceSurface) {
+    const imgs = Array.isArray(cfg.images) ? cfg.images : cfg.images ? String(cfg.images).split('|') : [];
+    if (imgs.length) window.UC_IMAGES = imgs.map(imgUrl).filter(Boolean);
+    ['emailImg', 'whatsappImg', 'pushImg', 'adImg', 'heroImg'].forEach((k) => { if (cfg[k]) cfg[k] = imgUrl(cfg[k]); });
     const root = document.documentElement;
     const surface = forceSurface || (cfg.surface === 'mobile' ? 'mobile' : cfg.surface === 'web' ? 'web' : (root.dataset.surface === 'mobile' ? 'mobile' : 'web'));
     root.dataset.surface = surface;
@@ -858,7 +884,7 @@
       <div class="mfrom"><div class="sc-av uc-wlogo">${logo(S.domain)}</div><div><b>${esc(S.name)}</b><small>to me · 09:41</small></div></div>
       <div class="mbody">
         <div class="mhead">${logo(S.domain, 'sc-plogo')}</div>
-        <img class="mhero" data-uc-product="0" alt="">
+        ${val('emailImg') ? `<img class="mhero" src="${esc(val('emailImg'))}" alt="">` : '<img class="mhero" data-uc-product="0" alt="">'}
         <h3>${esc(val('emailTitle'))}</h3>
         <p>${bold(val('emailText', S.customer, S.coupon, S.discount))}</p>
         <div class="mbtn">${esc(val('emailCta'))}</div>
@@ -997,7 +1023,11 @@
     const ALIAS = { trigger: 'on event', start: 'on event', wait: 'wait for some time', check: 'check conditions', if: 'check conditions', split: 'a/b split',
       onsite: 'on-site', 'on site': 'on-site', push: 'app push', apppush: 'app push', webpush: 'web push', 'in-app': 'inapp', 'in app': 'inapp', api: 'call an api',
       ab: 'a/b split', 'a/b': 'a/b split', nbc: 'next best channel', reachability: 'check reachability', interaction: 'check interaction' };
-    const NICE = (k) => Object.keys(MOD).includes(k) ? k.replace(/(^|[\s\-/])(\w)/g, (m, a, c) => a + c.toUpperCase()).replace('Sms', 'SMS').replace('Inapp', 'InApp').replace('Whatsapp', 'WhatsApp').replace('Api', 'API').replace('A/B Split', 'A/B Split').replace('Youtube', 'Youtube').replace('Tiktok', 'TikTok') : k;
+    const DISPLAY = { 'wait for some time': 'Wait for Some Time', 'wait for event': 'Wait for Event', 'wait for attribute': 'Wait for Attribute',
+      'wait until a time slot': 'Wait Until a Time Slot', 'wait until dynamic time': 'Wait Until Dynamic Time', 'on back in stock': 'On Back in Stock',
+      'call an api': 'Call an API', 'check api response': 'Check API Response', 'a/b split': 'A/B Split', 'on-site': 'On-Site', 'inapp': 'InApp',
+      'sms': 'SMS', 'whatsapp': 'WhatsApp', 'tiktok ads': 'TikTok Ads', 'youtube ads': 'Youtube Ads' };
+    const NICE = (k) => DISPLAY[k] || k.replace(/(^|\s)(\w)/g, (m, a, c) => a + c.toUpperCase());
     let raw = Array.isArray(cfg.flow) ? cfg.flow : String(cfg.flow || '').split('|');
     raw = raw.map((x) => String(x).trim()).filter(Boolean);
     if (!raw.length) raw = ['On Event:' + (TR ? 'Sepeti terk etti' : 'Cart Abandoned'), 'Wait for Some Time:' + (TR ? '1 Saat' : '1 Hour'), 'WhatsApp', 'Check Conditions:' + (TR ? 'Satın aldı mı?' : 'Purchased?'), 'Email', 'Wait for Some Time:' + (TR ? '1 Gün' : '1 Day'), 'App Push'];
@@ -1105,7 +1135,8 @@
     const w = String(cfg.widget || 'alsolike').toLowerCase();
     const kind = /bundle|together|fbt/.test(w) ? 'bundle' : /search/.test(w) ? 'search' : /compl/.test(w) ? 'complementary' : /view/.test(w) ? 'viewed' : 'alsolike';
     const prices = Array.isArray(cfg.prices) ? cfg.prices : [];
-    const card = (i, btn = true) => `<div class="sc-rcard" id="sc-r${i}"><div class="im"><img data-uc-product="${i}" alt=""></div><div class="nm" data-uc-pname="${i}"></div>${prices[i] ? `<div class="pr">${esc(prices[i])}</div>` : ''}${btn ? `<button id="sc-ra${i}">${esc(val('add'))}</button>` : ''}</div>`;
+    const labels = Array.isArray(cfg.labels) ? cfg.labels : [];
+    const card = (i, btn = true) => `<div class="sc-rcard" id="sc-r${i}"><div class="im"><img data-uc-product="${i}" alt=""></div><div class="nm" data-uc-pname="${i}">${esc(labels[i] || '')}</div>${prices[i] ? `<div class="pr">${esc(prices[i])}</div>` : ''}${btn ? `<button id="sc-ra${i}">${esc(val('add'))}</button>` : ''}</div>`;
     const site = S.scr.querySelector('.uc-site');
     let body = '';
     if (kind === 'bundle') {

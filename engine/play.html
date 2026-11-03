@@ -17,10 +17,28 @@
  * Any other parameter is a text key of the scene (notify, greeting, title, cta…). Lists (segments, quick, final, prices)
  * are separated with "|". A full JSON config also works: play.html?c=<url-encoded JSON>.                              */
 (function () {
-  const q = new URLSearchParams(location.search + (location.hash.length > 1 ? '&' + location.hash.slice(1) : ''));
+  // Tolerant parsing: an image link pasted as a value may contain its own "?" and "&"; anything that is not one of
+  // our keys is glued back onto the previous value.
+  const KNOWN = new Set(('c type surface site products brand color ink accent domain lang customer coupon discount format widget title add labels prices query ' +
+    'steps channels tags flow kpi yes no images emailImg whatsappImg pushImg adImg heroImg notify greeting productTitle productText cta cta2 question answer ' +
+    'sheetTitle sheetText sheetCta trigger kicker text copy done toast close product segments win prize spin resultKicker resultTitle resultText sticky ' +
+    'landTitle landText landCta landDone date cards nudge quick final cardCta added confirm placeholder count adText adCta homeTitle homeBadge complement ' +
+    'signupTitle signupText email signupCta welcome emailSubject emailTitle emailText emailCta smsText pushTitle pushText whatsappText onsiteTitle learning sub browse').split(' '));
+  const raw = (location.search.slice(1) + (location.hash.length > 1 ? '&' + location.hash.slice(1) : '')).split('&');
+  const pairs = [];
+  raw.forEach((seg) => {
+    if (!seg) return;
+    const i = seg.indexOf('='), k = i < 0 ? '' : decodeURIComponent(seg.slice(0, i));
+    if ((i < 0 || !KNOWN.has(k)) && pairs.length) { pairs[pairs.length - 1][1] += '&' + seg; return; }
+    pairs.push([k, i < 0 ? '' : seg.slice(i + 1)]);
+  });
+  const dec = (v) => { try { return decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) { return v.replace(/\+/g, ' '); } };
+  const URLISH = /^(images|emailImg|whatsappImg|pushImg|adImg|heroImg|site|products)$/;
+  const q = { get: (k) => { const p = pairs.find((x) => x[0] === k); return p ? (URLISH.test(k) ? decodeURIComponent(p[1]) : dec(p[1])) : null; },
+    forEach: (f) => pairs.forEach(([k, v]) => f(URLISH.test(k) ? (() => { try { return decodeURIComponent(v); } catch (e) { return v; } })() : dec(v), k)) };
   let cfg = {};
   if (q.get('c')) { try { cfg = JSON.parse(q.get('c')); } catch (e) { throw new Error('The link is broken (c= is not valid JSON). Ask the Gem for the link again.'); } }
-  const LISTS = ['segments', 'quick', 'final', 'prices', 'labels', 'steps', 'channels', 'tags', 'flow'];
+  const LISTS = ['segments', 'quick', 'final', 'prices', 'labels', 'steps', 'channels', 'tags', 'flow', 'images'];
   const BRAND = { brand: 'name', color: 'color', ink: 'ink', accent: 'accent', domain: 'domain' };
   q.forEach((v, k) => {
     if (k === 'c') return;
