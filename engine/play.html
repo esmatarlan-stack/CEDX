@@ -24,7 +24,7 @@
     'sheetTitle sheetText sheetCta trigger kicker text copy done toast close product segments win prize spin resultKicker resultTitle resultText sticky ' +
     'landTitle landText landCta landDone date cards nudge quick final cardCta added confirm placeholder count adText adCta homeTitle homeBadge complement ' +
     'signupTitle signupText email signupCta welcome emailSubject emailTitle emailText emailCta smsText pushTitle pushText whatsappText onsiteTitle learning sub browse ' +
-    'target seconds goal feedback hint emailPh consent successTitle successText shopCta').split(' '));
+    'target seconds goal feedback hint emailPh consent successTitle successText shopCta badges why badgeText badgeColor').split(' '));
   const raw = (location.search.slice(1) + (location.hash.length > 1 ? '&' + location.hash.slice(1) : '')).split('&');
   const pairs = [];
   raw.forEach((seg) => {
@@ -41,7 +41,7 @@
     forEach: (f) => pairs.forEach(([k, v]) => f(URLISH.test(k) ? (() => { try { return decodeURIComponent(v); } catch (e) { return v; } })() : dec(v), k)) };
   let cfg = {};
   if (q.get('c')) { try { cfg = JSON.parse(q.get('c')); } catch (e) { throw new Error('The link is broken (c= is not valid JSON). Ask the Gem for the link again.'); } }
-  const LISTS = ['segments', 'quick', 'final', 'prices', 'labels', 'steps', 'channels', 'tags', 'flow', 'images'];
+  const LISTS = ['segments', 'quick', 'final', 'prices', 'labels', 'steps', 'channels', 'tags', 'flow', 'images', 'badges', 'why'];
   const BRAND = { brand: 'name', color: 'color', ink: 'ink', accent: 'accent', domain: 'domain' };
   q.forEach((v, k) => {
     if (k === 'c') return;

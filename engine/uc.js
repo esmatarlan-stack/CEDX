@@ -1258,18 +1258,66 @@
     return T;
   }
 
-  const SCENES = { whatsapp, popup, wheel, push, agent, journey, architect, recommender, clicker };
+  // ---------------- Product badges (Web Templates / Onsite Experiment + Data Match) ----------------
+  // A clean store window over the real site: product cards get their badges (only eligible products), a badge
+  // explains itself on hover, then the product page shows the badge with its explanation next to Add to cart.
+  const BTXT = {
+    tr: { badges: ['🌱 Sorumlu Kaynaklı', '♻️ Geri Dönüştürülmüş', '🐰 Hayvan Deneysiz'], why: ['Doğrulanmış tedarik standartlarımıza göre seçilmiş malzemelerle üretildi.',
+      'Geri dönüştürülmüş malzemeler kullanılarak üretildi.', 'Hiçbir aşamasında hayvanlar üzerinde test edilmedi.'], search: 'Ara', cart: 'Sepet', add: 'Sepete Ekle', added: '✓ Sepete eklendi',
+      verified: 'Doğrulanmış ürün özelliği' },
+    en: { badges: ['🌱 Responsibly Sourced', '♻️ Recycled Materials', '🐰 Cruelty-Free'], why: ['Made with materials selected according to our verified sourcing standards.',
+      'Made using recycled materials.', 'Never tested on animals at any stage.'], search: 'Search', cart: 'Cart', add: 'Add to cart', added: '✓ Added to cart',
+      verified: 'Verified product attribute' },
+  };
+  function badges(cfg) {
+    const S = setup(cfg), B = S.L === TXT.tr ? BTXT.tr : BTXT.en, M = S.mobile;
+    const list = (k) => (Array.isArray(cfg[k]) && cfg[k].length ? cfg[k] : B[k]);
+    const bl = list('badges').slice(0, 3), why = Array.isArray(cfg.why) && cfg.why.length ? cfg.why : (cfg.badgeText ? [cfg.badgeText] : B.why);
+    const prices = Array.isArray(cfg.prices) ? cfg.prices : [];
+    const n = M ? 4 : 4, eligible = Math.min(bl.length, n - 1);   // the last card stays without a badge (not in the matched list)
+    const bc = cfg.badgeColor ? (/^#/.test(cfg.badgeColor) ? cfg.badgeColor : '#' + cfg.badgeColor) : '#c6f26b';
+    document.documentElement.style.setProperty('--badge', bc);
+    const cards = Array.from({ length: n }, (_, i) => `<div class="sc-bcard" id="sc-c${i}"><div class="im"><img data-uc-product="${i}" alt="">
+      ${i < eligible ? `<span class="sc-badge" id="sc-bd${i}" data-uc-hidden>${esc(bl[i])}</span>` : ''}</div>
+      <div class="nm" data-uc-pname="${i}"></div>${prices[i] ? `<div class="pr">${esc(prices[i])}</div>` : ''}</div>`).join('');
+    S.scr.append(h(`<div class="uc-dim" id="sc-dim" data-uc-hidden></div>`));
+    S.scr.append(h(`<div class="sc-win${M ? ' m' : ''}" id="sc-win" data-uc-hidden>
+      ${M ? '' : `<div class="bar"><i></i><i></i><i></i><span class="tab">${esc(S.name)}</span></div>`}
+      <div class="hdr">${logo(S.domain, 'lg')}<span class="sp"></span><span>${esc(B.search)}</span><span>${esc(B.cart)} <b id="sc-cart">2</b></span></div>
+      <div class="grid" id="sc-grid">${cards}</div>
+      <div class="pdp" id="sc-pdp" data-uc-hidden><div class="im"><img data-uc-product="1" alt=""><span class="sc-badge big" id="sc-pbd" data-uc-hidden>${esc(bl[1] || bl[0])}</span></div>
+        <div class="info"><div class="nm" data-uc-pname="1"></div>${prices[1] ? `<div class="pr">${esc(prices[1])}</div>` : ''}
+          <div class="why" id="sc-why" data-uc-hidden><b>${esc(bl[1] || bl[0])}</b><span>${esc(why[1] || why[0])}</span><small>✓ ${esc(B.verified)}</small></div>
+          <button id="sc-add">${esc(B.add)}</button></div></div>
+      <div class="tip" id="sc-tip" data-uc-hidden><b>${esc(bl[0])}</b>${esc(why[0])}</div></div>`));
+    const T = UC.timeline({ duration: 20, cursorStart: M ? null : [1100, 600] });
+    let t = 0.6;
+    T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-win', t, { anim: 'pop', dur: 0.45 });
+    t += 1.0;
+    for (let i = 0; i < eligible; i++) T.show('#sc-bd' + i, t + i * 0.55, { anim: 'pop', dur: 0.35 });
+    t += eligible * 0.55 + 0.8;
+    T.move(M ? [110, 330] : [330, 330], t, 0.7).show('#sc-tip', t + 0.1, { anim: 'up', dur: 0.3 });
+    t += 2.2; T.hide('#sc-tip', t, { dur: 0.2 }); T.tap('#sc-c1 .im', t + 0.6, { travel: 0.6, press: false });
+    t += 0.9; T.hide('#sc-grid', t, { anim: 'fade', dur: 0.25 }).show('#sc-pdp', t + 0.2, { anim: 'fade', dur: 0.35 });
+    t += 0.8; T.show('#sc-pbd', t, { anim: 'pop', dur: 0.35 });
+    t += 0.5; T.show('#sc-why', t, { anim: 'up', dur: 0.35 });
+    t += 2.0; T.tap('#sc-add', t, { travel: 0.7 }).text('#sc-add', esc(B.added), t + 0.15).cls('#sc-add', 'ok', t + 0.15).text('#sc-cart', '3', t + 0.2);
+    T.duration = t + 1.8; window.__UC_DURATION = T.duration;
+    return T;
+  }
+
+  const SCENES = { whatsapp, popup, wheel, push, agent, journey, architect, recommender, clicker, badges };
   // forgiving type names (agents sometimes use the product or template name instead of the scene type)
   const ALIASES = { clickergame: 'clicker', 'clicker-game': 'clicker', game: 'clicker', tap: 'clicker', tapgame: 'clicker', scratch: 'wheel', spin: 'wheel', spintowin: 'wheel',
     gamification: 'wheel', webtemplates: 'popup', 'web-templates': 'popup', webtemplate: 'popup', onsite: 'popup', exitintent: 'popup', lead: 'popup', newsletter: 'popup',
     webpush: 'push', apppush: 'push', notification: 'push', agentone: 'agent', chat: 'agent', assistant: 'agent', smartrecommender: 'recommender',
-    recommendation: 'recommender', recommendations: 'recommender', fbt: 'recommender', search: 'recommender', story: 'journey', personalization: 'journey', flow: 'architect' };
+    recommendation: 'recommender', recommendations: 'recommender', badge: 'badges', productbadges: 'badges', socialproof: 'badges', datamatch: 'badges', fbt: 'recommender', search: 'recommender', story: 'journey', personalization: 'journey', flow: 'architect' };
   window.UC.scene = function (cfg) {
     cfg = cfg || {};
     let key = String(cfg.type || '').toLowerCase().replace(/[\s_]+/g, '');
     if (!SCENES[key] && ALIASES[key]) { if (key === 'search' && !cfg.widget) cfg.widget = 'search'; key = ALIASES[key]; }
     const f = SCENES[key];
-    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, clicker, push, agent, recommender, journey or architect)');
+    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, clicker, badges, push, agent, recommender, journey or architect)');
     cfg.type = key;
     if (!cfg.site) throw new Error('UC.scene: "site" (the brand page URL) is required');
     return f(cfg);
