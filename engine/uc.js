@@ -448,7 +448,7 @@
           if (p.name) document.querySelectorAll(`[data-uc-pname="${img.dataset.ucProduct}"]`).forEach((n) => { n.textContent = p.name; });
         }));
       }
-      if (missing) note('warn', T_.prodFail, 'Some product photos could not be taken from the page. Point the product cards at a category page of the site with data-uc-products="https://…", or ask me for a screenshot.');
+      if (missing && missing >= pimgs.length) note('warn', T_.prodFail, 'Some product photos could not be taken from the page. Point the product cards at a category page of the site with data-uc-products="https://…", or ask me for a screenshot.');
     })());
   }
 

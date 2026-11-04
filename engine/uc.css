@@ -784,3 +784,15 @@ img.sc-hero.uc-noimg, .sc-toast img.uc-noimg, .ucn-ios img.thumb.uc-noimg, .ucn-
 .sc-win .tip { position: absolute; left: 36px; top: 310px; width: 260px; background: #111; color: #fff; border-radius: 12px; padding: 12px 14px; font: 13px/1.4 var(--font); box-shadow: 0 12px 30px rgba(0,0,0,.35); z-index: 5; }
 .sc-win.m .tip { left: 16px; top: 250px; width: 220px; font-size: 12px; }
 .sc-win .tip b { display: block; margin-bottom: 4px; }
+/* fewer real products than card slots: drop the empty cards instead of showing grey boxes */
+.sc-win .grid { display: flex; flex-wrap: wrap; }
+.sc-win .grid > .sc-bcard { flex: 1 1 0; min-width: 0; }
+.sc-win.m .grid > .sc-bcard { flex: 0 0 calc(50% - 6px); }
+.sc-bcard:has(img.uc-noimg), .sc-rcard:has(img.uc-noimg), .ucc-card:has(img.uc-noimg), .sc-recs .card:has(img.uc-noimg), .sc-mail .mgrid > div:has(img.uc-noimg) { display: none; }
+.sc-recs .row { display: flex; } .sc-recs .row > .card { flex: 1 1 0; min-width: 0; }
+/* keep the Data Match story: the last visible product never gets a badge (it is not in the matched list) */
+.sc-win .grid > .sc-bcard:nth-last-child(1 of .sc-bcard:not(:has(img.uc-noimg))) .sc-badge { display: none; }
+/* long badge labels stay inside the card: wrap to two lines instead of spilling over the left edge */
+.sc-badge { max-width: calc(100% - 20px); white-space: normal; line-height: 1.25; text-align: left; border-radius: 14px; }
+.sc-win.m .sc-badge { max-width: calc(100% - 16px); border-radius: 12px; }
+.sc-badge.big { max-width: calc(100% - 32px); }
