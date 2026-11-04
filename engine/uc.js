@@ -268,8 +268,8 @@
     try { navigator.clipboard.writeText(txt).catch(fallback); } catch (e) { fallback(); }
   }
   function note(kind, msg, copy) {
+    if (!ui) { pending.push([kind, msg, copy]); return; }   // shown once the bar exists (errors thrown before the page starts)
     if (seenMsg.has(kind + msg)) return; seenMsg.add(kind + msg);
-    if (!ui) { pending.push([kind, msg, copy]); return; }
     const n = document.createElement('div'); n.className = 'note ' + kind;
     const p = document.createElement('p'); p.textContent = msg; p.title = msg;
     const b = document.createElement('button'); b.textContent = T_.copy;
@@ -579,7 +579,7 @@
     get duration() { return current ? current.duration : 0; },
     play() { setPlaying(true); }, pause() { setPlaying(false); },
     export: (kind) => doExport(kind || 'gif'),
-    version: '7',
+    version: '9',
     ease, clamp, lerp,
   };
 })();
