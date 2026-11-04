@@ -23,17 +23,20 @@
     'steps channels tags flow kpi yes no images emailImg whatsappImg pushImg adImg heroImg notify greeting productTitle productText cta cta2 question answer ' +
     'sheetTitle sheetText sheetCta trigger kicker text copy done toast close product segments win prize spin resultKicker resultTitle resultText sticky ' +
     'landTitle landText landCta landDone date cards nudge quick final cardCta added confirm placeholder count adText adCta homeTitle homeBadge complement ' +
-    'signupTitle signupText email signupCta welcome emailSubject emailTitle emailText emailCta smsText pushTitle pushText whatsappText onsiteTitle learning sub browse').split(' '));
+    'signupTitle signupText email signupCta welcome emailSubject emailTitle emailText emailCta smsText pushTitle pushText whatsappText onsiteTitle learning sub browse ' +
+    'target seconds goal feedback hint emailPh consent successTitle successText shopCta').split(' '));
   const raw = (location.search.slice(1) + (location.hash.length > 1 ? '&' + location.hash.slice(1) : '')).split('&');
   const pairs = [];
   raw.forEach((seg) => {
     if (!seg) return;
     const i = seg.indexOf('='), k = i < 0 ? '' : decodeURIComponent(seg.slice(0, i));
-    if ((i < 0 || !KNOWN.has(k)) && pairs.length) { pairs[pairs.length - 1][1] += '&' + seg; return; }
+    // glue only onto a link value (an image or page URL with its own "&"); text keys are never glued
+    const prev = pairs[pairs.length - 1];
+    if (prev && /^(images|emailImg|whatsappImg|pushImg|adImg|heroImg|target|site|products)$/.test(prev[0]) && (i < 0 || !KNOWN.has(k))) { prev[1] += '&' + seg; return; }
     pairs.push([k, i < 0 ? '' : seg.slice(i + 1)]);
   });
   const dec = (v) => { try { return decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) { return v.replace(/\+/g, ' '); } };
-  const URLISH = /^(images|emailImg|whatsappImg|pushImg|adImg|heroImg|site|products)$/;
+  const URLISH = /^(images|emailImg|whatsappImg|pushImg|adImg|heroImg|site|products)$/;  // target may also be a link, but it is decoded as text (emoji)
   const q = { get: (k) => { const p = pairs.find((x) => x[0] === k); return p ? (URLISH.test(k) ? decodeURIComponent(p[1]) : dec(p[1])) : null; },
     forEach: (f) => pairs.forEach(([k, v]) => f(URLISH.test(k) ? (() => { try { return decodeURIComponent(v); } catch (e) { return v; } })() : dec(v), k)) };
   let cfg = {};

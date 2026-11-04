@@ -1192,11 +1192,85 @@
     return T;
   }
 
-  const SCENES = { whatsapp, popup, wheel, push, agent, journey, architect, recommender };
+  // ---------------- Clicker Game (Web Templates gamification) ----------------
+  // Content page with lead form → 3-2-1 → timed tapping on a target (timer + click counter) → success with coupon.
+  const CTXT = {
+    tr: { kicker: 'OYUN ZAMANI', title: 'Hedefi patlat!', text: (s, g) => `${s} saniyede ${g} kez dokun, ödülünü kap!`, emailPh: 'E-posta adresin',
+      consent: 'Kampanyalardan haberdar olmak istiyorum', cta: 'HADİ OYNAYALIM', seconds: 'Saniye', clicks: 'Tıklama', feedback: 'Devam et!',
+      hint: (s, g) => `${s} saniyede ${g} kez dokun.`, successTitle: 'Başardın! 🎉', successText: (d) => `${d} indirim kodun açıldı.`, shopCta: 'ALIŞVERİŞE BAŞLA', copied: 'Kopyalandı ✓' },
+    en: { kicker: 'GAME TIME', title: 'Pop the target!', text: (s, g) => `Hit it ${g} times in ${s} seconds and unlock your reward!`, emailPh: 'Your email',
+      consent: 'I want to hear about offers', cta: "LET'S PLAY", seconds: 'Seconds', clicks: 'Clicks', feedback: 'Keep going!',
+      hint: (s, g) => `Hit it ${g} times in ${s} seconds.`, successTitle: 'You did it! 🎉', successText: (d) => `Your ${d} code is unlocked.`, shopCta: 'SHOP NOW', copied: 'Copied ✓' },
+  };
+  function clicker(cfg) {
+    const S = setup(cfg), C = S.L === TXT.tr ? CTXT.tr : CTXT.en, M = S.mobile;
+    const val = (k, ...a) => { const v = cfg[k]; if (v != null && v !== '') return v; const d = C[k]; return typeof d === 'function' ? d(...a) : d; };
+    const secs = Math.max(5, Math.min(30, +cfg.seconds || 10)), goal = Math.max(8, Math.min(30, +cfg.goal || 20));
+    const tgt = cfg.target || '🎯', isImg = /^https?:/.test(String(tgt));
+    const target = (cls, id) => isImg ? `<img class="${cls}" ${id ? `id="${id}"` : ''} src="${esc(imgUrl(tgt))}" alt="">` : `<div class="${cls} emo" ${id ? `id="${id}"` : ''}>${esc(tgt)}</div>`;
+    const mail = `${S.customer.toLowerCase().replace(/[^a-z]/g, '') || 'name'}@mail.com`;
+    S.scr.append(h(`<div class="uc-dim" id="sc-dim" data-uc-hidden></div>`));
+    S.scr.append(h(`<div class="uc-layer" id="sc-lay" data-uc-hidden><div class="sc-game${M ? ' m' : ''}" id="sc-game">
+      <div class="x">✕</div>
+      <div class="pg" id="sc-p1">${target('tg-s')}<div class="kick">${esc(val('kicker'))}</div><h2>${esc(val('title'))}</h2><p>${bold(val('text', secs, goal))}</p>
+        <input id="sc-mail" placeholder="${esc(val('emailPh'))}"><label class="cons"><span class="box" id="sc-box"></span>${esc(val('consent'))}</label>
+        <button class="go" id="sc-go">${esc(val('cta'))}</button></div>
+      <div class="pg" id="sc-p2" data-uc-hidden><div class="hud"><div><b class="n" id="sc-tm"><span data-cd="s">${secs}</span></b><small>⏱ ${esc(val('seconds'))}</small></div>
+        <div class="r"><b class="n" id="sc-cl">0</b><small>🏆 ${esc(val('clicks'))}</small></div></div>
+        <div class="arena">${target('tg', 'sc-tg')}<div class="cd" id="sc-cd" data-uc-hidden>3</div><div class="fb" id="sc-fb" data-uc-hidden>${esc(val('feedback'))}</div></div>
+        <p class="hint">${esc(val('hint', secs, goal))}</p></div>
+      <div class="pg" id="sc-p3" data-uc-hidden>${target('tg-s pop')}<h2>${esc(val('successTitle'))}</h2><p>${bold(val('successText', S.discount))}</p>
+        <div class="ucp-coupon"><div class="code">${esc(S.coupon)}</div><button id="sc-copy">${esc(TXT[S.L === TXT.tr ? 'tr' : 'en'].popup.copy)}</button></div>
+        <button class="go" id="sc-shop">${esc(val('shopCta'))}</button></div>
+      <div class="ucp-confetti" id="sc-conf"></div></div></div>`));
+    const conf = S.scr.querySelector('#sc-conf'), color = getComputedStyle(document.documentElement).getPropertyValue('--brand').trim() || '#e8772e';
+    [color, '#f5b700', '#2e9e5b', '#e03a3a', '#ffffff'].forEach(() => {});
+    for (let i = 0; i < 34; i++) { const c = document.createElement('i'); c.style.left = (3 + (i * 37) % 94) + '%'; c.style.background = [color, '#f5b700', '#2e9e5b', '#e03a3a', '#ffffff'][i % 5]; conf.appendChild(c); }
+
+    const T = UC.timeline({ duration: 30, cursorStart: M ? null : [900, 560] });
+    const tw = (sel, from, to, at, dur) => T.tween(sel, 'scale', from, to, at, dur, { fmt: (v) => String(v), ease: 'out' });
+    let t = 0.8;
+    T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-lay', t, { anim: 'pop', dur: 0.45 });
+    t += 1.4; T.tap('#sc-mail', t, { travel: 0.7 }); T.type('#sc-mail', mail, t + 0.2, { cps: 20 });
+    t += 0.5 + mail.length / 20; T.tap('#sc-box', t, { travel: 0.4 }).cls('#sc-box', 'on', t + 0.1);
+    t += 0.7; T.tap('#sc-go', t, { travel: 0.5 });
+    t += 0.3; T.hide('#sc-p1', t, { dur: 0.2 }).show('#sc-p2', t + 0.2, { anim: 'fade', dur: 0.3 });
+    // 3-2-1
+    const c0 = t + 0.4; T.show('#sc-cd', c0, { anim: 'pop', dur: 0.2 }).text('#sc-cd', '2', c0 + 0.5).text('#sc-cd', '1', c0 + 1.0).hide('#sc-cd', c0 + 1.45, { dur: 0.1 });
+    const g0 = c0 + 1.5; T.countdown('#sc-tm', secs, { at: g0 });
+    // rapid taps on the target (compressed: the goal is reached in ~3.6 s of real time)
+    const gap = 3.6 / goal;
+    for (let i = 1; i <= goal; i++) {
+      const at = g0 + 0.2 + (i - 1) * gap;
+      T.tap('#sc-tg', at, { travel: i === 1 ? 0.5 : 0.04, press: false });
+      tw('#sc-tg', 0.9, 1, at, Math.min(0.16, gap * 0.9));
+      T.text('#sc-cl', String(i), at + 0.02);
+    }
+    T.show('#sc-fb', g0 + 0.2 + goal * gap * 0.45, { anim: 'pop', dur: 0.2 }).hide('#sc-fb', g0 + 0.2 + goal * gap * 0.75, { dur: 0.2 });
+    t = g0 + 0.2 + goal * gap + 0.15;
+    T.hide('#sc-tg', t, { anim: 'pop', dur: 0.3 });
+    t += 0.35; T.hide('#sc-p2', t, { dur: 0.15 }).show('#sc-p3', t + 0.15, { anim: 'pop', dur: 0.4 }).show('#sc-conf', t + 0.15, { anim: 'none', dur: 0 });
+    [...conf.children].forEach((c, i) => { const x0 = (i % 7 - 3) * 14, rot = (i * 47) % 360, d = (i % 6) * 0.05;
+      T.tween(c, 'transform', 0, 1, t + 0.2 + d, 2.2, { ease: 'linear', fmt: (p) => `translate(${x0 * p}px, ${p * 560}px) rotate(${rot + p * 540}deg)` }); });
+    t += 1.9; T.tap('#sc-copy', t, { travel: 0.6 }).text('#sc-copy', esc(val('copied')), t + 0.15).cls('#sc-copy', 'ok', t + 0.15);
+    t += 1.2; T.tap('#sc-shop', t, { travel: 0.5 });
+    T.duration = t + 1.6; window.__UC_DURATION = T.duration;
+    return T;
+  }
+
+  const SCENES = { whatsapp, popup, wheel, push, agent, journey, architect, recommender, clicker };
+  // forgiving type names (agents sometimes use the product or template name instead of the scene type)
+  const ALIASES = { clickergame: 'clicker', 'clicker-game': 'clicker', game: 'clicker', tap: 'clicker', tapgame: 'clicker', scratch: 'wheel', spin: 'wheel', spintowin: 'wheel',
+    gamification: 'wheel', webtemplates: 'popup', 'web-templates': 'popup', webtemplate: 'popup', onsite: 'popup', exitintent: 'popup', lead: 'popup', newsletter: 'popup',
+    webpush: 'push', apppush: 'push', notification: 'push', agentone: 'agent', chat: 'agent', assistant: 'agent', smartrecommender: 'recommender',
+    recommendation: 'recommender', recommendations: 'recommender', fbt: 'recommender', search: 'recommender', story: 'journey', personalization: 'journey', flow: 'architect' };
   window.UC.scene = function (cfg) {
     cfg = cfg || {};
-    const f = SCENES[String(cfg.type || '').toLowerCase()];
-    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, push, agent, journey, architect or recommender)');
+    let key = String(cfg.type || '').toLowerCase().replace(/[\s_]+/g, '');
+    if (!SCENES[key] && ALIASES[key]) { if (key === 'search' && !cfg.widget) cfg.widget = 'search'; key = ALIASES[key]; }
+    const f = SCENES[key];
+    if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, clicker, push, agent, recommender, journey or architect)');
+    cfg.type = key;
     if (!cfg.site) throw new Error('UC.scene: "site" (the brand page URL) is required');
     return f(cfg);
   };
