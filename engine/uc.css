@@ -796,3 +796,36 @@ img.sc-hero.uc-noimg, .sc-toast img.uc-noimg, .ucn-ios img.thumb.uc-noimg, .ucn-
 .sc-badge { max-width: calc(100% - 20px); white-space: normal; line-height: 1.25; text-align: left; border-radius: 14px; }
 .sc-win.m .sc-badge { max-width: calc(100% - 16px); border-radius: 12px; }
 .sc-badge.big { max-width: calc(100% - 32px); }
+
+/* ---------- fit reassurance (cart) scene ---------- */
+.sc-fit .cart { padding: 18px 30px; width: 560px; }
+.sc-fit.m .cart { width: auto; padding: 12px 16px; }
+.sc-fit .ct { color: #888; font: 14px/1 var(--font); margin-bottom: 14px; }
+.sc-crow { display: flex; gap: 18px; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+.sc-crow .im { width: 120px; height: 120px; border-radius: 8px; overflow: hidden; background: #f2f2f2; flex: 0 0 120px; }
+.sc-fit.m .sc-crow .im { width: 96px; height: 110px; flex: 0 0 96px; }
+.sc-crow .im img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sc-crow .info { display: flex; flex-direction: column; gap: 8px; font: 15px/1.2 var(--font); color: #111; }
+.sc-fit.m .sc-crow .info { font-size: 13.5px; gap: 6px; }
+.sc-crow .nm { font-weight: 700; } .sc-crow .nm:empty { display: none; }
+.sc-crow .meta { display: flex; gap: 18px; align-items: center; }
+.sc-crow .q { display: inline-flex; width: 44px; height: 28px; border: 1.5px solid #333; align-items: center; justify-content: center; font-size: 13px; }
+.sc-crow .rm { color: var(--accent); font-weight: 700; text-decoration: underline; font-size: 14px; }
+.sc-fit .co { margin-top: 16px; width: 100%; height: 48px; border-radius: 10px; background: var(--brand); color: var(--brand-ink); font: 700 15px/1 var(--font); }
+.sc-fit .co.ok { background: #2e9e5b; color: #fff; }
+.sc-fit .msg { position: absolute; right: 36px; top: 160px; width: 330px; padding: 22px 22px 20px; border-radius: 6px; color: #fff; font-family: var(--font);
+  background: linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 55%, #6a0f8e)); box-shadow: 0 16px 40px rgba(0,0,0,.25); }
+.sc-fit.m .msg { right: 12px; left: 12px; top: auto; bottom: 14px; width: auto; }
+.sc-fit .msg .x { position: absolute; right: 12px; top: 10px; font-size: 14px; opacity: .9; }
+.sc-fit .msg b { display: block; font: 800 19px/1.25 var(--font); margin-bottom: 8px; padding-right: 18px; }
+.sc-fit .msg p { font: 14.5px/1.45 var(--font); margin: 0 0 14px; opacity: .95; }
+.sc-fit .msg button { height: 40px; padding: 0 16px; border-radius: 8px; background: #fff; color: #111; font: 700 14px/1 var(--font); }
+.sc-fit .guide { position: absolute; right: 0; top: 98px; bottom: 0; width: 400px; background: #fff; box-shadow: -14px 0 40px rgba(0,0,0,.18); padding: 22px 24px; font-family: var(--font); }
+.sc-fit.m .guide { left: 0; width: auto; top: auto; height: 440px; border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.25); }
+.sc-fit .guide .gh { display: flex; justify-content: space-between; align-items: center; font: 800 20px/1 var(--font); margin-bottom: 16px; }
+.sc-fit .guide table { width: 100%; border-collapse: collapse; font: 14px/1 var(--font); }
+.sc-fit .guide th { text-align: left; color: #777; font-weight: 600; padding: 10px 8px; border-bottom: 2px solid #eee; }
+.sc-fit .guide td { padding: 12px 8px; border-bottom: 1px solid #f0f0f0; color: #222; }
+.sc-fit .guide tr.on td { background: color-mix(in srgb, var(--brand) 12%, #fff); font-weight: 800; color: #111; }
+.sc-fit .guide tr.on td:first-child { box-shadow: inset 3px 0 0 var(--brand); }
+.sc-fit .fitc { margin-top: 16px; background: #e3f6e9; color: #1d7a3e; font: 700 14px/1 var(--ui); padding: 12px 14px; border-radius: 10px; }
