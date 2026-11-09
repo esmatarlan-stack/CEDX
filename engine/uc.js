@@ -447,6 +447,7 @@
         let prods = []; if (window.UC_IMAGES && window.UC_IMAGES.length) prods = window.UC_IMAGES.map((src, i) => ({ src, name: (window.UC_PNAMES || [])[i] || '' })); else { try { prods = await productsOf(u); } catch (e) {} }
         await Promise.all(list.map(async (img) => {
           const p = prods[+img.dataset.ucProduct || 0]; if (!p) { missing++; img.classList.add('uc-noimg'); return; }
+          if (/^data:image\/svg/.test(p.src)) img.classList.add('uc-tile');
           try { await loadImg(img, p.src); } catch (e) { missing++; img.classList.add('uc-noimg'); }
           if (p.name) document.querySelectorAll(`[data-uc-pname="${img.dataset.ucProduct}"]`).forEach((n) => { n.textContent = p.name; });
         }));
@@ -686,7 +687,7 @@
   const cardSvg = (a, b, label, tier) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600"><rect width="600" height="600" fill="#f3f4f7"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><g transform="rotate(-8 300 300)"><rect x="90" y="170" width="420" height="265" rx="26" fill="url(#g)"/><rect x="128" y="250" width="64" height="48" rx="8" fill="#e8c76a"/><text x="128" y="215" font-family="Arial" font-weight="700" font-size="28" fill="#fff">${label}</text><text x="128" y="395" font-family="Arial" font-size="22" letter-spacing="4" fill="rgba(255,255,255,.85)">•••• 4021</text><text x="470" y="395" text-anchor="end" font-family="Arial" font-weight="700" font-size="22" fill="#fff">${tier}</text></g></svg>`);
   // Drawn tiles for industries whose "products" are plans, policies, tickets, courses…: brand-neutral, no photo needed.
   const xs = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const tile = (c1, c2, icon, big, small, dark) => (big = xs(big), small = xs(small), 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/><circle cx="500" cy="110" r="190" fill="rgba(255,255,255,.10)"/><circle cx="80" cy="560" r="160" fill="rgba(255,255,255,.08)"/><text x="60" y="210" font-size="150" font-family="Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif">${icon}</text><text x="60" y="400" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="${big.length > 9 ? 56 : 72}" fill="${dark ? '#1b1b1f' : '#fff'}">${big}</text><text x="62" y="460" font-family="Arial,Helvetica,sans-serif" font-size="30" fill="${dark ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.88)'}">${small}</text></svg>`));
+  const tile = (c1, c2, icon, big, small, dark) => (big = xs(big), small = xs(small), 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/><circle cx="500" cy="110" r="190" fill="rgba(255,255,255,.10)"/><circle cx="80" cy="560" r="160" fill="rgba(255,255,255,.08)"/><text x="58" y="270" font-size="112" font-family="Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif">${icon}</text><text x="60" y="380" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="${big.length > 9 ? 56 : 72}" fill="${dark ? '#1b1b1f' : '#fff'}">${big}</text><text x="62" y="430" font-family="Arial,Helvetica,sans-serif" font-size="30" fill="${dark ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.88)'}">${small}</text></svg>`));
   const T2 = (en, tr) => ({ en, tr: tr || en });
   const DRAWN = {
     insurance: { nav: T2(['Car', 'Home', 'Health', 'Travel', 'Claims'], ['Kasko', 'Konut', 'Sağlık', 'Seyahat', 'Hasar']), emoji: '🛡️',
@@ -828,9 +829,43 @@
     banking: { en: { landCta: 'Apply now', landDone: '✓ Application started', add: 'Apply', added: '✓ Applied', toast: 'Application started', cardCta: 'Apply', cta: 'Apply now', landText: 'Pre-approved for you. Apply in 2 minutes.' },
       tr: { landCta: 'Hemen başvur', landDone: '✓ Başvuru başladı', add: 'Başvur', added: '✓ Başvuruldu', toast: 'Başvurun başladı', cardCta: 'Başvur', cta: 'Hemen başvur', landText: 'Sana özel ön onaylı. 2 dakikada başvur.' } },
   };
+  const TILE_TR = { 'Car': 'Kasko', 'Full cover': 'Tam kapsam', 'Home': 'Konut', 'Fire & theft': 'Yangın & hırsızlık', 'Health': 'Sağlık', 'Family plan': 'Aile planı', 'Travel': 'Seyahat',
+    'Worldwide': 'Tüm dünyada', 'Pet': 'Evcil hayvan', 'Vet cover': 'Veteriner güvencesi', 'Device': 'Cihaz', 'Screen & theft': 'Ekran & hırsızlık',
+    '5G · Unlimited calls': '5G · Sınırsız konuşma', 'Unlimited': 'Sınırsız', '5G · Family sharing': '5G · Aile paylaşımı', 'Fibre home internet': 'Fiber ev interneti',
+    'Roaming pack': 'Yurt dışı paketi', 'TV channels': 'TV kanalı', 'Happy birthday': 'İyi ki doğdun', 'Thank you': 'Teşekkürler', 'Season’s greetings': 'Mutlu yıllar',
+    'For your team': 'Ekibin için', 'Just because': 'Sebepsiz sürpriz', 'Congrats, grad!': 'Tebrikler mezun!', 'Live 67′': 'Canlı 67′', 'Boost 3.50': 'Artırım 3.50',
+    'was 2.80': 'önceki 2.80', 'Cup final': 'Kupa finali', 'Outright winner': 'Şampiyon tahmini', 'Lotto': 'Loto', 'Draw: Saturday': 'Çekiliş: Cumartesi', 'Scratch': 'Kazı kazan',
+    'Instant win': 'Anında kazan', 'Jackpot': 'İkramiye', 'Rolls over again': 'Yine devretti', 'Syndicate': 'Ortak bilet', 'Play together': 'Birlikte oyna', 'Lucky 5': 'Şanslı 5',
+    'Daily draw': 'Günlük çekiliş', 'Results': 'Sonuçlar', 'Last draw': 'Son çekiliş', 'Space racing': 'Uzay yarışı', 'Fantasy RPG': 'Fantastik RPG', 'Strategy': 'Strateji',
+    'Survival': 'Hayatta kalma', 'Racing': 'Yarış', 'Puzzle': 'Bulmaca', 'Data Science': 'Veri Bilimi', '12 weeks · Beginner': '12 hafta · Başlangıç', 'UX Design': 'UX Tasarım',
+    '8 weeks · All levels': '8 hafta · Her seviye', '6 weeks · Beginner': '6 hafta · Başlangıç', 'Marketing': 'Pazarlama', '4 weeks · Pro': '4 hafta · İleri', 'English': 'İngilizce',
+    'B2 · Speaking': 'B2 · Konuşma', 'AI Basics': 'Yapay Zeka', '3 weeks · Intro': '3 hafta · Giriş', 'Frontend Dev': 'Frontend', 'Remote · Full-time': 'Uzaktan · Tam zamanlı',
+    'Product Designer': 'Ürün Tasarımcısı', 'Hybrid · Full-time': 'Hibrit · Tam zamanlı', 'Growth Lead': 'Büyüme Lideri', 'On-site · Senior': 'Ofiste · Kıdemli',
+    'Field Engineer': 'Saha Mühendisi', 'Full-time': 'Tam zamanlı', 'Data Analyst': 'Veri Analisti', 'Remote · Mid': 'Uzaktan · Orta seviye', 'Account Manager': 'Müşteri Yöneticisi',
+    'Hybrid': 'Hibrit', 'Check-up': 'Check-up', 'Full body': 'Tüm vücut', 'Online visit': 'Online görüşme', 'Today, 15 min': 'Bugün, 15 dk', 'Cardiology': 'Kardiyoloji',
+    'Specialist': 'Uzman', 'Dental': 'Diş', 'Cleaning & care': 'Temizlik & bakım', 'Eye exam': 'Göz muayenesi', 'Same week': 'Aynı hafta', 'Lab tests': 'Tahliller',
+    'Results online': 'Sonuçlar online', 'Plant trees': 'Ağaç dik', '72% funded': '%72 tamamlandı', 'Clean water': 'Temiz su', '58% funded': '%58 tamamlandı',
+    'School kits': 'Okul setleri', '81% funded': '%81 tamamlandı', 'Hot meals': 'Sıcak yemek', '64% funded': '%64 tamamlandı', 'Animal care': 'Hayvan bakımı',
+    '45% funded': '%45 tamamlandı', 'Emergency': 'Acil yardım', 'Urgent': 'Acil', 'Analytics': 'Analitik', 'Real-time reports': 'Anlık raporlar', 'Automation': 'Otomasyon',
+    'Workflows': 'İş akışları', 'Security': 'Güvenlik', 'SSO & audit': 'SSO & denetim', 'Cloud': 'Bulut', '99.99% uptime': '%99,99 erişilebilirlik', 'Integrations': 'Entegrasyon',
+    '300+ apps': '300+ uygulama', 'Support': 'Destek', '24/7 experts': '7/24 uzman', 'from €19/mo': 'aylık €19’dan', 'Car insurance · ★4.8': 'Kasko · ★4.8',
+    'Personal loan · ★4.7': 'İhtiyaç kredisi · ★4.7', '0% fee': '%0 ücret', 'Credit card · ★4.6': 'Kredi kartı · ★4.6', 'Energy tariff · ★4.5': 'Enerji tarifesi · ★4.5',
+    'Broadband · ★4.6': 'İnternet · ★4.6', 'from €9/mo': 'aylık €9’dan', 'Home insurance · ★4.7': 'Konut sigortası · ★4.7', 'World': 'Dünya', 'Summit ends in deal': 'Zirve anlaşmayla bitti',
+    'Business': 'Ekonomi', 'Markets close higher': 'Piyasalar yükselişte', 'Tech': 'Teknoloji', 'AI at work': 'İşte yapay zeka', 'Sport': 'Spor', 'Derby tonight': 'Bu akşam derbi',
+    'Culture': 'Kültür', 'Festival guide': 'Festival rehberi', 'Weather': 'Hava durumu', 'Weekend outlook': 'Hafta sonu', 'Live Concert': 'Canlı Konser', 'Sat · 21:00': 'Cmt · 21:00',
+    'Theatre': 'Tiyatro', 'Fri · 20:00': 'Cum · 20:00', 'Derby': 'Derbi', 'Sun · 19:00': 'Paz · 19:00', 'Festival': 'Festival', '3-day pass': '3 günlük kombine', 'Premiere': 'Gala',
+    'Thu · 20:30': 'Per · 20:30', 'Stand-up': 'Stand-up', 'Sat · 22:00': 'Cmt · 22:00', 'Pizza': 'Pizza', '25–35 min': '25–35 dk', 'Burger': 'Burger', '20–30 min': '20–30 dk',
+    'Salad': 'Salata', '15–25 min': '15–25 dk', 'Sushi': 'Suşi', '30–40 min': '30–40 dk', 'Wrap': 'Dürüm', '15–20 min': '15–20 dk', 'Coffee': 'Kahve', '10–15 min': '10–15 dk',
+    'SUV': 'SUV', 'Hybrid · 7 seats': 'Hibrit · 7 koltuk', 'EV': 'Elektrikli', '520 km range': '520 km menzil', '0–100 in 4.2 s': '0–100: 4,2 sn', 'Sedan': 'Sedan',
+    'Executive': 'Makam', 'Pickup': 'Pickup', 'Service': 'Bakım', 'Book online': 'Online randevu', 'City centre': 'Şehir merkezi', 'Garden villa': 'Bahçeli villa',
+    'New project': 'Yeni proje', 'Studio': 'Stüdyo', 'Sea view': 'Deniz manzaralı', 'Shop · 80 m²': 'Dükkan · 80 m²', 'Commercial': 'Ticari', 'Beach villa': 'Plaj villası',
+    '★4.9 · 6 guests': '★4.9 · 6 kişi', 'Forest cabin': 'Orman evi', '★4.8 · 4 guests': '★4.8 · 4 kişi', 'City loft': 'Şehir loft', '★4.7 · 2 guests': '★4.7 · 2 kişi',
+    'Mountain chalet': 'Dağ evi', '★4.9 · 8 guests': '★4.9 · 8 kişi', 'Garden house': 'Bahçeli ev', '★4.6 · 5 guests': '★4.6 · 5 kişi', 'Sea apartment': 'Deniz kenarı daire',
+    '★4.8 · 3 guests': '★4.8 · 3 kişi', 'Lions v Eagles': 'Lions - Eagles', 'Comets v Bulls': 'Comets - Bulls', 'Rossi v Kane': 'Rossi - Kane' };
   Object.keys(DRAWN).forEach((k) => {
     const D = DRAWN[k];
-    INDUSTRIES[k] = { nav: D.nav, hero: { en: D.hero.en, tr: D.hero.tr, emoji: D.emoji }, row: D.row, items: D.items.map(([t, n]) => [tile(...t), n]) };
+    const trT = (t) => { const u = t.slice(); u[3] = TILE_TR[u[3]] || u[3]; u[4] = TILE_TR[u[4]] || u[4]; return u; };
+    INDUSTRIES[k] = { nav: D.nav, hero: { en: D.hero.en, tr: D.hero.tr, emoji: D.emoji }, row: D.row, items: D.items.map(([t, n]) => [{ en: tile(...t), tr: tile(...trT(t)) }, n]) };
     IND_VOCAB[k] = D.vocab;
   });
   const IND_ALIAS = { airline: 'travel', airlines: 'travel', hospitality: 'travel', tourism: 'travel', hotel: 'travel', hotels: 'travel', ota: 'travel',
@@ -854,7 +889,7 @@
   function demoIndustry(x) { if (!x) return null; const k = String(x).toLowerCase().replace(/[^a-z]/g, ''); return INDUSTRIES[k] || INDUSTRIES[IND_ALIAS[k]] || null; }
   function demoStore(I, cfg, name, domain, tr) {
     const L = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v[tr ? 'tr' : 'en'] : v);
-    const items = I.items.map(([src, n]) => [src.startsWith('data:') ? src.replace(/BRAND/g, encodeURIComponent(String(name).toUpperCase().slice(0, 12))) : src, L(n)]);
+    const items = I.items.map(([src0, n]) => { const src = L(src0); return [src.startsWith('data:') ? src.replace(/BRAND/g, encodeURIComponent(String(name).toUpperCase().slice(0, 12))) : src, L(n)]; });
     window.UC_IMAGES = items.map((x) => x[0]); window.UC_PNAMES = items.map((x) => x[1]);
     const key = Object.keys(INDUSTRIES).find((k) => INDUSTRIES[k] === I), V = IND_VOCAB[key] && IND_VOCAB[key][tr ? 'tr' : 'en'];
     if (V) Object.keys(V).forEach((k) => { if (cfg[k] == null || cfg[k] === '') cfg[k] = V[k]; });

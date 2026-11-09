@@ -903,3 +903,4 @@ img.sc-hero.uc-noimg, .sc-toast img.uc-noimg, .ucn-ios img.thumb.uc-noimg, .ucn-
 [data-surface="mobile"] .uc-demo .hero .deco { font-size: 96px; right: 16px; top: auto; bottom: 14px; translate: none; opacity: .55; }
 /* drawn industry tiles keep their text side visible when a card crops them */
 img[src^="data:image/svg"] { object-position: left center; }
+img.uc-tile { object-position: left center !important; }
