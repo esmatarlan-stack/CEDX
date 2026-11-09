@@ -849,3 +849,8 @@ img.sc-hero.uc-noimg, .sc-toast img.uc-noimg, .ucn-ios img.thumb.uc-noimg, .ucn-
 .sc-mail .mhero.uc-noimg { display: none; }
 .sc-solo.sc-phone { left: 50%; top: 50%; translate: -50% -50%; height: 620px; }
 .sc-solo.sc-mailcard, .sc-solo.ucn-web, .sc-solo.ucp { left: 50%; top: 50%; translate: -50% -50%; }
+/* dynamic-content placeholders left in message copy */
+.uc-ph { display: inline-block; padding: 0 6px; margin: 0 1px; border-radius: 5px; background: rgba(120,120,140,.16); color: inherit; font-weight: 600; line-height: 1.35; }
+.uc-phl { color: #1a73e8; text-decoration: underline; }
+
+.uc-site.uc-nosite { background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 10%, #f6f6f8), #eef0f3); }

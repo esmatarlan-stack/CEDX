@@ -338,7 +338,9 @@
       const m = `https://s.wordpress.com/mshots/v1/${encodeURIComponent(url)}?w=1280&h=720`;
       for (let i = 0; i < 8; i++) { try { await loadImg(img, m + '&r=' + i); if (img.naturalWidth >= 600) { msg.remove(); return; } } catch (e) { break; } await new Promise((r) => setTimeout(r, 3000)); }
     }
-    img.style.display = 'none'; msg.textContent = T_.siteFail;
+    img.style.display = 'none'; msg.remove();
+    el.classList.add('uc-nosite'); el.innerHTML = `<div class="nb"><span class="lg"></span><i></i><i></i><i></i><i></i></div><div class="nh"></div><div class="ng"><i></i><i></i><i></i><i></i></div>`;
+    el.querySelector('.lg').textContent = window.UC_BRANDNAME || url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
     note('warn', T_.siteFail, 'The screenshot service could not capture ' + url + '. Suggest another page of the same site (e.g. a category page); if that also fails, ask me for a screenshot.');
   }
   // Logos. Square icons (avatars, notification icons, launcher) come from the site's own app/fav icon via
@@ -663,7 +665,7 @@
     if (surface === 'mobile') scr.append(h(STATUS));
     if (site) scr.append(h(`<div class="uc-site" data-site="${esc(site)}"></div>`));
     else scr.append(h(`<div class="uc-nosite"><div class="nb"><span class="lg">${esc(name)}</span><i></i><i></i><i></i><i></i></div><div class="nh"></div><div class="ng"><i></i><i></i><i></i><i></i></div></div>`));
-    window.UC_BRANDNAME = name;
+    window.UC_BRANDNAME = name; window.UC_DOMAIN = domain;
     const L = /^tr/i.test(cfg.lang || root.lang || '') ? TXT.tr : TXT.en;
     const noOffer = /^(none|no|-|0)?$/i.test(String(cfg.coupon == null ? 'x' : cfg.coupon).trim()) && cfg.coupon != null || String(cfg.discount) === '0';
     const NO = noOfferText(L === TXT.tr);
@@ -679,7 +681,12 @@
       emailText: 'Your picks are still waiting. Pick up where you left off.', smsText: 'Your favourites are waiting, take a look!' };
   }
   const logo = (domain, cls = '') => domain ? `<img data-uc-logo="${esc(domain)}" alt="" class="${cls}">` : `<span class="uc-logotext ${cls}">${esc(window.UC_BRANDNAME || '')}</span>`;
-  const bold = (t) => esc(t).replace(/\*([^*]+)\*/g, '<b>$1</b>');
+  // *text* → bold. Placeholders the use case left in the copy ({produto}, {link_carrinho}, [Topic A]…) are drawn as
+  // dynamic-content tokens: links as a short underlined link on the brand's domain, everything else as a soft chip.
+  const bold = (t) => esc(t).replace(/\*([^*]+)\*/g, '<b>$1</b>').replace(/\{([^{}]{1,40})\}/g, (m, k) => {
+    if (/link|url|cart|carrinho|carrito|sepet|checkout|kasse|panier/i.test(k)) return `<u class="uc-phl">${esc((window.UC_DOMAIN || 'link') + '/…')}</u>`;
+    return `<span class="uc-ph">${k.replace(/[_-]+/g, ' ')}</span>`;
+  });
 
   // ---------------- WhatsApp (always mobile) ----------------
   function whatsapp(cfg) {
