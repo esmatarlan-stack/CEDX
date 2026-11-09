@@ -398,10 +398,11 @@
       // Render the page in a real browser (prerender), scroll it so lazy images load, and tag every visible photo
       // (current <img> source or CSS background) so it can be read back, even on sites built with JS.
       const SCAN = "(()=>{window.scrollTo(0,document.body.scrollHeight/2);setTimeout(()=>window.scrollTo(0,0),400);document.querySelectorAll('img').forEach(i=>{const u=i.currentSrc||i.src||i.getAttribute('data-src')||i.getAttribute('data-lazy-src');if(u&&!/^data:/.test(u))i.setAttribute('data-ucimg',u)});document.querySelectorAll('div,a,section,li,span,figure,picture').forEach(e=>{const b=getComputedStyle(e).backgroundImage;const m=b&&b.match(/url\\([\"']?([^\"')]+)/);if(m&&e.getBoundingClientRect().width>140&&!/^data:/.test(m[1]))e.setAttribute('data-ucimg',m[1])})})()";
+      const LIGHT = `url=${enc(url)}&meta=false&data.src.selectorAll=${sel}&data.src.attr=src&data.alt.selectorAll=${sel}&data.alt.attr=alt`;
       const d = await mlJSON(`url=${enc(url)}&meta=true&prerender=true&waitForTimeout=2500&scripts=${enc(SCAN)}&data.src.selectorAll=${sel}&data.src.attr=src&data.alt.selectorAll=${sel}&data.alt.attr=alt`
         + `&data.tagged.selectorAll=${enc('[data-ucimg]')}&data.tagged.attr=data-ucimg`
         + `&data.any.selectorAll=img&data.any.attr=src&data.lazy.selectorAll=${enc('img[data-src]')}&data.lazy.attr=data-src`
-        + `&data.srcset.selectorAll=${enc('img[srcset],source[srcset]')}&data.srcset.attr=srcset&data.bg.selectorAll=${enc('[style*="background-image"]')}&data.bg.attr=style`);
+        + `&data.srcset.selectorAll=${enc('img[srcset],source[srcset]')}&data.srcset.attr=srcset&data.bg.selectorAll=${enc('[style*="background-image"]')}&data.bg.attr=style`).catch(() => mlJSON(LIGHT));
       // pass 1: product images with alt text (names)
       const src = d.src || [], alt = d.alt || [], seen = new Set(), cands = [];
       const aligned = src.length === alt.length;   // if the service dropped values, names would be shifted: use photos only
@@ -443,13 +444,14 @@
       pimgs.forEach((img) => { const from = (img.closest('[data-uc-products]') || {}).dataset?.ucProducts || (site && site.dataset.site); if (!from && !(window.UC_IMAGES && window.UC_IMAGES.length)) { img.classList.add('uc-noimg'); return; } if (from || window.UC_IMAGES) { const u = from ? absUrl(from) : '__images'; if (!groups.has(u)) groups.set(u, []); groups.get(u).push(img); } });
       let missing = 0;
       for (const [u, list] of groups) {
-        let prods = []; if (window.UC_IMAGES && window.UC_IMAGES.length) prods = window.UC_IMAGES.map((src) => ({ src, name: '' })); else { try { prods = await productsOf(u); } catch (e) {} }
+        let prods = []; if (window.UC_IMAGES && window.UC_IMAGES.length) prods = window.UC_IMAGES.map((src, i) => ({ src, name: (window.UC_PNAMES || [])[i] || '' })); else { try { prods = await productsOf(u); } catch (e) {} }
         await Promise.all(list.map(async (img) => {
           const p = prods[+img.dataset.ucProduct || 0]; if (!p) { missing++; img.classList.add('uc-noimg'); return; }
           try { await loadImg(img, p.src); } catch (e) { missing++; img.classList.add('uc-noimg'); }
           if (p.name) document.querySelectorAll(`[data-uc-pname="${img.dataset.ucProduct}"]`).forEach((n) => { n.textContent = p.name; });
         }));
       }
+      if (missing && missing >= pimgs.length) document.documentElement.classList.add('uc-noproducts');
       if (missing && missing >= pimgs.length) note('warn', T_.prodFail, 'Some product photos could not be taken from the page. Point the product cards at a category page of the site with data-uc-products="https://…", or ask me for a screenshot.');
     })());
   }
@@ -663,7 +665,9 @@
     scr.innerHTML = '';
     if (cfg.products) scr.dataset.ucProducts = cfg.products;
     if (surface === 'mobile') scr.append(h(STATUS));
+    const TR_ = /^tr/i.test(cfg.lang || '');
     if (site) scr.append(h(`<div class="uc-site" data-site="${esc(site)}"></div>`));
+    else if (demoIndustry(cfg.industry)) scr.append(h(demoStore(demoIndustry(cfg.industry), cfg, name, domain, TR_)));
     else scr.append(h(`<div class="uc-nosite"><div class="nb"><span class="lg">${esc(name)}</span><i></i><i></i><i></i><i></i></div><div class="nh"></div><div class="ng"><i></i><i></i><i></i><i></i></div></div>`));
     window.UC_BRANDNAME = name; window.UC_DOMAIN = domain;
     const L = /^tr/i.test(cfg.lang || root.lang || '') ? TXT.tr : TXT.en;
@@ -672,6 +676,47 @@
     const pick = (key, sub, ...args) => { const v = cfg[key]; if (v != null && v !== '') return v; if (noOffer && NO[key]) return NO[key]; const d = L[sub][key]; return typeof d === 'function' ? d(...args) : d; };
     return { scr, surface, mobile: surface === 'mobile', domain, name, L, pick, noOffer, NO, customer: cfg.customer || (L === TXT.tr ? 'Ayşe' : 'Emma'),
       coupon: cfg.coupon || (name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8) + '10'), discount: cfg.discount || (L === TXT.tr ? '%10' : '10%') };
+  }
+  // ---------- Industry demo stores (for the demo brand, e.g. Posh, when the use case is not fashion) ----------
+  // Free-to-use stock photos (Pexels / Pixabay licences) or drawn cards; every scene takes its "products" from here.
+  const PX = (id, w = 800) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=${w}`;
+  const cardSvg = (a, b, label, tier) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600"><rect width="600" height="600" fill="#f3f4f7"/><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><g transform="rotate(-8 300 300)"><rect x="90" y="170" width="420" height="265" rx="26" fill="url(#g)"/><rect x="128" y="250" width="64" height="48" rx="8" fill="#e8c76a"/><text x="128" y="215" font-family="Arial" font-weight="700" font-size="28" fill="#fff">${label}</text><text x="128" y="395" font-family="Arial" font-size="22" letter-spacing="4" fill="rgba(255,255,255,.85)">•••• 4021</text><text x="470" y="395" text-anchor="end" font-family="Arial" font-weight="700" font-size="22" fill="#fff">${tier}</text></g></svg>`);
+  const INDUSTRIES = {
+    travel: {
+      nav: { en: ['Flights', 'Hotels', 'Holidays', 'Miles', 'Check-in'], tr: ['Uçuşlar', 'Oteller', 'Tatiller', 'Mil Programı', 'Check-in'] },
+      hero: { en: ['Where to next?', 'Fares to 120+ destinations, flexible dates.', 'Search flights'], tr: ['Sıradaki rota neresi?', '120+ destinasyona esnek tarihli uçuşlar.', 'Uçuş ara'], img: PX(1456297, 1600) },
+      row: { en: 'Popular destinations', tr: 'Popüler destinasyonlar' },
+      items: [[PX(4059793), 'Paris'], [PX(12762773), 'Istanbul'], [PX(356966), 'Rome'], [PX(3319712), { en: 'Maldives', tr: 'Maldivler' }], [PX(3379736), { en: 'Island resorts', tr: 'Ada tatilleri' }], [PX(13246889), { en: 'Bosphorus tours', tr: 'Boğaz turları' }]],
+    },
+    banking: {
+      nav: { en: ['Cards', 'Loans', 'Savings', 'Investments', 'Insurance'], tr: ['Kartlar', 'Krediler', 'Birikim', 'Yatırım', 'Sigorta'] },
+      hero: { en: ['A card for every plan', 'Cashback, miles and zero annual fee options.', 'Compare cards'], tr: ['Her plana uygun bir kart', 'Nakit iade, mil ve aidatsız kart seçenekleri.', 'Kartları karşılaştır'] },
+      row: { en: 'Cards for you', tr: 'Sana uygun kartlar' },
+      items: [[cardSvg('#1d2b53', '#3c5aa6', 'BRAND', 'CLASSIC'), { en: 'Classic Card', tr: 'Classic Kart' }], [cardSvg('#8a6a1f', '#d8b25a', 'BRAND', 'GOLD'), { en: 'Gold Card', tr: 'Gold Kart' }],
+        [cardSvg('#0d6e6e', '#2fb3a8', 'BRAND', 'TRAVEL'), { en: 'Travel Card', tr: 'Travel Kart' }], [cardSvg('#2b2b2b', '#6b6b6b', 'BRAND', 'PLATINUM'), { en: 'Platinum Card', tr: 'Platinum Kart' }],
+        [cardSvg('#6a2c91', '#b05cd6', 'BRAND', 'STUDENT'), { en: 'Student Card', tr: 'Genç Kart' }], [cardSvg('#7a1d1d', '#d0473b', 'BRAND', 'BUSINESS'), { en: 'Business Card', tr: 'Ticari Kart' }]],
+    },
+    grocery: {
+      nav: { en: ['Fresh Produce', 'Bakery', 'Dairy', 'Snacks', 'Drinks'], tr: ['Meyve & Sebze', 'Fırın', 'Süt Ürünleri', 'Atıştırmalık', 'İçecek'] },
+      hero: { en: ['Fresh groceries in 30 minutes', 'Farm-fresh produce delivered to your door.', 'Shop now'], tr: ['30 dakikada taze market', 'Tarladan kapına taze ürünler.', 'Alışverişe başla'], img: 'https://cdn.pixabay.com/photo/2018/02/12/09/00/the-market-3147758_1280.jpg' },
+      row: { en: 'Fresh picks', tr: 'Taze seçimler' },
+      items: [['https://cdn.pixabay.com/photo/2016/07/02/22/42/berries-1493905_640.jpg', { en: 'Blueberries', tr: 'Yaban Mersini' }], ['https://cdn.pixabay.com/photo/2023/10/01/19/14/oranges-8287967__340.jpg', { en: 'Oranges', tr: 'Portakal' }],
+        ['https://cdn.pixabay.com/photo/2021/10/31/14/43/avocados-6757663__340.jpg', { en: 'Avocados', tr: 'Avokado' }], ['https://cdn.pixabay.com/photo/2018/08/08/16/17/potatoes-3592527__340.jpg', { en: 'Potatoes', tr: 'Patates' }],
+        ['https://cdn.pixabay.com/photo/2014/08/20/23/10/raspberries-422979__340.jpg', { en: 'Raspberries', tr: 'Ahududu' }], ['https://cdn.pixabay.com/photo/2016/05/16/22/47/onions-1397037__340.jpg', { en: 'Onions', tr: 'Soğan' }]],
+    },
+  };
+  const IND_ALIAS = { airline: 'travel', airlines: 'travel', hospitality: 'travel', tourism: 'travel', hotel: 'travel', hotels: 'travel', ota: 'travel',
+    bank: 'banking', finance: 'banking', financial: 'banking', fintech: 'banking', financialservices: 'banking', bfsi: 'banking',
+    supermarket: 'grocery', fmcg: 'grocery', food: 'grocery', retailgrocery: 'grocery', qcommerce: 'grocery' };
+  function demoIndustry(x) { if (!x) return null; const k = String(x).toLowerCase().replace(/[^a-z]/g, ''); return INDUSTRIES[k] || INDUSTRIES[IND_ALIAS[k]] || null; }
+  function demoStore(I, cfg, name, domain, tr) {
+    const L = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v[tr ? 'tr' : 'en'] : v);
+    const items = I.items.map(([src, n]) => [src.startsWith('data:') ? src.replace(/BRAND/g, encodeURIComponent(String(name).toUpperCase().slice(0, 12))) : src, L(n)]);
+    window.UC_IMAGES = items.map((x) => x[0]); window.UC_PNAMES = items.map((x) => x[1]);
+    const hero = L(I.hero), lg = domain ? `<img data-uc-logo="${esc(domain)}" alt="" class="lgi">` : '';
+    return `<div class="uc-demo"><div class="nb">${lg}<span class="lg">${esc(name)}</span><nav>${L(I.nav).map((x) => `<span>${esc(x)}</span>`).join('')}</nav><span class="ic">⌕ &nbsp;◯ &nbsp;🛒</span></div>
+      <div class="hero"${I.hero.img ? '' : ' data-plain'}>${I.hero.img ? `<img src="${esc(I.hero.img)}" alt="">` : ''}<div class="tx"><h1>${esc(hero[0])}</h1><p>${esc(hero[1])}</p><b>${esc(hero[2])}</b></div></div>
+      <div class="row"><h3>${esc(L(I.row))}</h3><div class="grid">${items.slice(0, 4).map(([src, n]) => `<div class="it"><img src="${esc(src)}" alt=""><span>${esc(n)}</span></div>`).join('')}</div></div></div>`;
   }
   // texts without a coupon, used when coupon=NONE or discount=0
   function noOfferText(tr) {
