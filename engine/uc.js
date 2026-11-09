@@ -705,6 +705,12 @@
         ['https://cdn.pixabay.com/photo/2014/08/20/23/10/raspberries-422979__340.jpg', { en: 'Raspberries', tr: 'Ahududu' }], ['https://cdn.pixabay.com/photo/2016/05/16/22/47/onions-1397037__340.jpg', { en: 'Onions', tr: 'Soğan' }]],
     },
   };
+  const IND_VOCAB = {
+    travel: { en: { landCta: 'Book now', landDone: '✓ Selected', add: 'Book now', added: '✓ Selected', toast: 'Added to your trip', cardCta: 'Book now', cta: 'Book now', landText: 'Fares are moving fast. Complete your booking.' },
+      tr: { landCta: 'Hemen rezervasyon yap', landDone: '✓ Seçildi', add: 'Rezervasyon yap', added: '✓ Seçildi', toast: 'Seyahatine eklendi', cardCta: 'Rezervasyon yap', cta: 'Rezervasyon yap', landText: 'Fiyatlar hızla değişiyor, rezervasyonunu tamamla.' } },
+    banking: { en: { landCta: 'Apply now', landDone: '✓ Application started', add: 'Apply', added: '✓ Applied', toast: 'Application started', cardCta: 'Apply', cta: 'Apply now', landText: 'Pre-approved for you. Apply in 2 minutes.' },
+      tr: { landCta: 'Hemen başvur', landDone: '✓ Başvuru başladı', add: 'Başvur', added: '✓ Başvuruldu', toast: 'Başvurun başladı', cardCta: 'Başvur', cta: 'Hemen başvur', landText: 'Sana özel ön onaylı. 2 dakikada başvur.' } },
+  };
   const IND_ALIAS = { airline: 'travel', airlines: 'travel', hospitality: 'travel', tourism: 'travel', hotel: 'travel', hotels: 'travel', ota: 'travel',
     bank: 'banking', finance: 'banking', financial: 'banking', fintech: 'banking', financialservices: 'banking', bfsi: 'banking',
     supermarket: 'grocery', fmcg: 'grocery', food: 'grocery', retailgrocery: 'grocery', qcommerce: 'grocery' };
@@ -713,8 +719,10 @@
     const L = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v[tr ? 'tr' : 'en'] : v);
     const items = I.items.map(([src, n]) => [src.startsWith('data:') ? src.replace(/BRAND/g, encodeURIComponent(String(name).toUpperCase().slice(0, 12))) : src, L(n)]);
     window.UC_IMAGES = items.map((x) => x[0]); window.UC_PNAMES = items.map((x) => x[1]);
+    const key = Object.keys(INDUSTRIES).find((k) => INDUSTRIES[k] === I), V = IND_VOCAB[key] && IND_VOCAB[key][tr ? 'tr' : 'en'];
+    if (V) Object.keys(V).forEach((k) => { if (cfg[k] == null || cfg[k] === '') cfg[k] = V[k]; });
     const hero = L(I.hero), lg = domain ? `<img data-uc-logo="${esc(domain)}" alt="" class="lgi">` : '';
-    return `<div class="uc-demo"><div class="nb">${lg}<span class="lg">${esc(name)}</span><nav>${L(I.nav).map((x) => `<span>${esc(x)}</span>`).join('')}</nav><span class="ic">⌕ &nbsp;◯ &nbsp;🛒</span></div>
+    return `<div class="uc-demo"><div class="nb">${lg}<span class="lg">${esc(name)}</span><nav>${L(I.nav).map((x) => `<span>${esc(x)}</span>`).join('')}</nav><span class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/></svg><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11h11L21 7H6.2"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg></span></div>
       <div class="hero"${I.hero.img ? '' : ' data-plain'}>${I.hero.img ? `<img src="${esc(I.hero.img)}" alt="">` : ''}<div class="tx"><h1>${esc(hero[0])}</h1><p>${esc(hero[1])}</p><b>${esc(hero[2])}</b></div></div>
       <div class="row"><h3>${esc(L(I.row))}</h3><div class="grid">${items.slice(0, 4).map(([src, n]) => `<div class="it"><img src="${esc(src)}" alt=""><span>${esc(n)}</span></div>`).join('')}</div></div></div>`;
   }

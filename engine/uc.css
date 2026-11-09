@@ -892,3 +892,10 @@ img.sc-hero.uc-noimg, .sc-toast img.uc-noimg, .ucn-ios img.thumb.uc-noimg, .ucn-
 .uc-noproducts .sc-rtrack > .sc-rcard { display: block; }
 .uc-noproducts :is(.sc-bcard, .sc-rcard, .sc-bitem, .sc-crow, .ucc-card) .im:has(img.uc-noimg),
 .uc-noproducts .sc-recs .card:has(img.uc-noimg) { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 18%, #fff), color-mix(in srgb, var(--brand) 6%, #f4f4f6)) !important; }
+/* demo store: its own stacking context (nothing bleeds through overlays), clean header */
+.uc-demo, .uc-nosite { z-index: 0; isolation: isolate; }
+.uc-demo .nb .ic { display: flex; gap: 16px; align-items: center; white-space: nowrap; }
+.uc-demo .nb .ic svg { width: 22px; height: 22px; fill: none; stroke: #222; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.uc-demo .nb .lgi { margin-right: -16px; }
+[data-surface="mobile"] .uc-demo .nb .lgi { margin-right: 0; height: 28px; width: 28px; }
+[data-surface="mobile"] .uc-demo .nb .lg { font-size: 19px; }
