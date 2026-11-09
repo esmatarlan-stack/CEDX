@@ -438,7 +438,7 @@
     const pimgs = [...document.querySelectorAll('img[data-uc-product]')].filter((img) => !img.dataset.ucMounted && (img.dataset.ucMounted = '1'));
     if (pimgs.length) pendingAssets.push((async () => {
       const groups = new Map();
-      pimgs.forEach((img) => { const from = (img.closest('[data-uc-products]') || {}).dataset?.ucProducts || (site && site.dataset.site); if (from) { const u = absUrl(from); if (!groups.has(u)) groups.set(u, []); groups.get(u).push(img); } });
+      pimgs.forEach((img) => { const from = (img.closest('[data-uc-products]') || {}).dataset?.ucProducts || (site && site.dataset.site); if (!from && !(window.UC_IMAGES && window.UC_IMAGES.length)) { img.classList.add('uc-noimg'); return; } if (from || window.UC_IMAGES) { const u = from ? absUrl(from) : '__images'; if (!groups.has(u)) groups.set(u, []); groups.get(u).push(img); } });
       let missing = 0;
       for (const [u, list] of groups) {
         let prods = []; if (window.UC_IMAGES && window.UC_IMAGES.length) prods = window.UC_IMAGES.map((src) => ({ src, name: '' })); else { try { prods = await productsOf(u); } catch (e) {} }
@@ -661,13 +661,24 @@
     scr.innerHTML = '';
     if (cfg.products) scr.dataset.ucProducts = cfg.products;
     if (surface === 'mobile') scr.append(h(STATUS));
-    scr.append(h(`<div class="uc-site" data-site="${esc(site)}"></div>`));
+    if (site) scr.append(h(`<div class="uc-site" data-site="${esc(site)}"></div>`));
+    else scr.append(h(`<div class="uc-nosite"><div class="nb"><span class="lg">${esc(name)}</span><i></i><i></i><i></i><i></i></div><div class="nh"></div><div class="ng"><i></i><i></i><i></i><i></i></div></div>`));
+    window.UC_BRANDNAME = name;
     const L = /^tr/i.test(cfg.lang || root.lang || '') ? TXT.tr : TXT.en;
-    const pick = (key, sub, ...args) => { const v = cfg[key]; if (v != null && v !== '') return v; const d = L[sub][key]; return typeof d === 'function' ? d(...args) : d; };
-    return { scr, surface, mobile: surface === 'mobile', domain, name, L, pick, customer: cfg.customer || (L === TXT.tr ? 'Ayşe' : 'Emma'),
+    const noOffer = /^(none|no|-|0)?$/i.test(String(cfg.coupon == null ? 'x' : cfg.coupon).trim()) && cfg.coupon != null || String(cfg.discount) === '0';
+    const NO = noOfferText(L === TXT.tr);
+    const pick = (key, sub, ...args) => { const v = cfg[key]; if (v != null && v !== '') return v; if (noOffer && NO[key]) return NO[key]; const d = L[sub][key]; return typeof d === 'function' ? d(...args) : d; };
+    return { scr, surface, mobile: surface === 'mobile', domain, name, L, pick, noOffer, NO, customer: cfg.customer || (L === TXT.tr ? 'Ayşe' : 'Emma'),
       coupon: cfg.coupon || (name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 8) + '10'), discount: cfg.discount || (L === TXT.tr ? '%10' : '10%') };
   }
-  const logo = (domain, cls = '') => `<img data-uc-logo="${esc(domain)}" alt="" class="${cls}">`;
+  // texts without a coupon, used when coupon=NONE or discount=0
+  function noOfferText(tr) {
+    return tr ? { productText: 'Siparişini şimdi tamamla, favorilerin tükenmeden.', sheetTitle: 'Sepetin hazır 🛍️', sheetText: 'Kaldığın yerden devam et.',
+      emailText: 'Sepetindeki ürünler seni bekliyor. Kaldığın yerden devam et.', smsText: 'Favorilerin seni bekliyor, hemen göz at!' }
+      : { productText: 'Complete your order before your picks sell out.', sheetTitle: 'Your cart is ready 🛍️', sheetText: 'Pick up where you left off.',
+      emailText: 'Your picks are still waiting. Pick up where you left off.', smsText: 'Your favourites are waiting, take a look!' };
+  }
+  const logo = (domain, cls = '') => domain ? `<img data-uc-logo="${esc(domain)}" alt="" class="${cls}">` : `<span class="uc-logotext ${cls}">${esc(window.UC_BRANDNAME || '')}</span>`;
   const bold = (t) => esc(t).replace(/\*([^*]+)\*/g, '<b>$1</b>');
 
   // ---------------- WhatsApp (always mobile) ----------------
@@ -915,7 +926,7 @@
   };
   function journey(cfg) {
     const S = setup(cfg, 'web'), J = S.L === TXT.tr ? JTXT.tr : JTXT.en;
-    const val = (k, ...a) => { const v = cfg[k]; if (v != null && v !== '') return v; const d = J[k]; return typeof d === 'function' ? d(...a) : d; };
+    const val = (k, ...a) => { const v = cfg[k]; if (v != null && v !== '') return v; if (S.noOffer && S.NO[k]) return S.NO[k]; const d = J[k]; return typeof d === 'function' ? d(...a) : d; };
     const ALL = ['ad', 'browse', 'home', 'signup', 'channels'];
     let steps = (Array.isArray(cfg.steps) && cfg.steps.length ? cfg.steps : ALL).map((x) => String(x).toLowerCase().trim()).filter((x) => ALL.includes(x));
     if (!steps.length) steps = ALL;
@@ -1003,7 +1014,7 @@
   function architect(cfg) {
     const S = setup(cfg, 'web'), J0 = S.L === TXT.tr ? JTXT.tr : JTXT.en, TR = S.L === TXT.tr;
     if (!window.UCJ) throw new Error('UC.scene architect needs journey.js');
-    const val = (k, ...a) => { const v = cfg[k]; if (v != null && v !== '') return v; const d = J0[k]; return typeof d === 'function' ? d(...a) : d; };
+    const val = (k, ...a) => { const v = cfg[k]; if (v != null && v !== '') return v; if (S.noOffer && S.NO[k]) return S.NO[k]; const d = J0[k]; return typeof d === 'function' ? d(...a) : d; };
     // Insider Architect module catalogue (exact names, colours by kind, icons from journey.js)
     const MOD = {
       'on event': ['starter', 'event'], 'on website event': ['starter', 'website'], 'on website visit': ['starter', 'website'], 'user website action': ['starter', 'website'],
@@ -1066,12 +1077,6 @@
     });
     if (tail && tail.branches) tail.branches.forEach((b) => { if (b.next === undefined) b.next = null; });
 
-    const scr = S.scr;
-    scr.append(h(`<div class="sc-arch" id="sc-arch"><div class="sc-archhd"><span class="dot"></span><b>Architect</b><span class="nm">${esc(cfg.title || (TR ? 'Müşteri yolculuğu' : 'Customer journey'))}</span></div></div>`));
-    const host = scr.querySelector('#sc-arch');
-    const Jb = UCJ.build(host, root, { x: 24, y: 72, maxW: 590, maxH: 630 });
-    { const w = Jb.spec._w * Jb.scale; Jb.x = Math.max(24, Math.round((640 - w) / 2)); Jb.canvas.style.left = Jb.x + 'px'; }   // centre the flow in the panel
-    // channel mockups on the right, over the real site
     const panel = (it, i) => {
       const id = 'sc-m' + i;
       if (it.ch === 'email') return emailPhone(S, val, J0, id, 'sc-amock');
@@ -1083,6 +1088,28 @@
       if (it.ch === 'onsite' || it.ch === 'inapp') return `<div class="ucp sc-amock sc-aon" id="${id}" data-uc-hidden><div class="ucp-pad">${logo(S.domain, 'sc-plogo')}<h2>${esc(cfg.onsiteTitle || val('signupTitle', S.discount))}</h2><div class="sc-code">${esc(S.coupon)}</div></div></div>`;
       return `<div class="sc-phone sm sc-amock" id="${id}" data-uc-hidden><div class="scr sc-lock"><div class="clock">9:41</div><div class="ucn-ios"><div class="ic light">${logo(S.domain)}</div><div class="main"><div class="l1">${esc(S.name)}<span>${esc(J0.now)}</span></div><div class="b"><b>${esc(val('pushTitle', S.customer))}</b> ${bold(val('pushText'))}</div></div><img class="thumb" data-uc-product="1" alt=""></div></div></div>`;
     };
+    const panelFor = (it, i) => panel(it, i);
+    // A single channel and no starter (e.g. an Email-only or SMS-only use case): show that message on its own,
+    // centred over the site, instead of a one-node Architect canvas.
+    if (main.length === 1 && main[0].t === 'channel' && main[0].mockType) {
+      const it = main[0]; it.ch = it.mockType;
+      S.scr.append(h(`<div class="uc-dim" id="sc-dim" data-uc-hidden></div>`));
+      const tmp = document.createElement('div'); tmp.innerHTML = panelFor(it, 0); const el = tmp.firstElementChild; el.classList.add('sc-solo'); S.scr.append(el);
+      if (cfg.kpi) S.scr.append(h(`<div class="sc-kpi" id="sc-kpi" data-uc-hidden>🎯 ${esc(cfg.kpi)}</div>`));
+      if (!cfg.format) document.documentElement.dataset.format = 'gif';
+      const T = UC.timeline({ duration: 10, cursorStart: [1100, 640] });
+      let t = 0.6; T.show('#sc-dim', t, { anim: 'fade', dur: 0.3 }).show('#sc-m0', t + 0.1, { anim: 'up', dur: 0.5 });
+      const btn = el.querySelector('.mbtn, .sc-igcta, .ucn-ios, .bub');
+      if (btn) { btn.id = btn.id || 'sc-solo-cta'; t += 3.2; T.tap('#' + btn.id, t, { travel: 0.9 }); }
+      if (cfg.kpi) T.show('#sc-kpi', t + 0.6, { anim: 'pop', dur: 0.4 });
+      T.duration = t + 2.4; window.__UC_DURATION = T.duration; return T;
+    }
+    const scr = S.scr;
+    scr.append(h(`<div class="sc-arch" id="sc-arch"><div class="sc-archhd"><span class="dot"></span><b>Architect</b><span class="nm">${esc(cfg.title || (TR ? 'Müşteri yolculuğu' : 'Customer journey'))}</span></div></div>`));
+    const host = scr.querySelector('#sc-arch');
+    const Jb = UCJ.build(host, root, { x: 24, y: 72, maxW: 590, maxH: 630 });
+    { const w = Jb.spec._w * Jb.scale; Jb.x = Math.max(24, Math.round((640 - w) / 2)); Jb.canvas.style.left = Jb.x + 'px'; }   // centre the flow in the panel
+    // channel mockups on the right, over the real site
     scr.append(h(`<div class="uc-dim sc-adim" id="sc-dim" data-uc-hidden></div>`));
     const chans = main.filter((it) => it.t === 'channel' && it.mockType);
     chans.forEach((it, i) => { it.ch = it.mockType; it.mock = 'sc-m' + i; scr.append(h(panel(it, i))); });
@@ -1366,7 +1393,6 @@
     const f = SCENES[key];
     if (!f) throw new Error('UC.scene: unknown type "' + cfg.type + '" (use whatsapp, popup, wheel, clicker, badges, fit, push, agent, recommender, journey or architect)');
     cfg.type = key;
-    if (!cfg.site) throw new Error('UC.scene: "site" (the brand page URL) is required');
     return f(cfg);
   };
 })();
