@@ -899,3 +899,7 @@ img.sc-hero.uc-noimg, .sc-toast img.uc-noimg, .ucn-ios img.thumb.uc-noimg, .ucn-
 .uc-demo .nb .lgi { margin-right: -16px; }
 [data-surface="mobile"] .uc-demo .nb .lgi { margin-right: 0; height: 28px; width: 28px; }
 [data-surface="mobile"] .uc-demo .nb .lg { font-size: 19px; }
+.uc-demo .hero .deco { position: absolute; right: 70px; top: 50%; translate: 0 -50%; font-size: 190px; line-height: 1; opacity: .9; filter: drop-shadow(0 18px 30px rgba(0,0,0,.25)); }
+[data-surface="mobile"] .uc-demo .hero .deco { font-size: 96px; right: 16px; top: auto; bottom: 14px; translate: none; opacity: .55; }
+/* drawn industry tiles keep their text side visible when a card crops them */
+img[src^="data:image/svg"] { object-position: left center; }
